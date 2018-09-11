@@ -1,1 +1,2 @@
-acces_log*
+access_log*
+*_log*

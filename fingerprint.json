@@ -1,0 +1,279 @@
+fingerprints = [
+    {
+        'fp': '.*\.{2,3}(/|%2f).*',
+        'attack': '".", ".." or "..." request',
+        'alone': 1
+    },
+    {
+        'fp':
+        '.*%20.*',
+        'attack':
+        '"%20" may be used to execute command --> %20 is hex whitespace code',
+        'alone':
+        1
+    },
+    {
+        'fp':
+        '.*%00.*',
+        'attack':
+        '"%00" may be used to access forbidden files --> is hex null code',
+        'alone':
+        1
+    },
+    {
+        'fp': '.*((<.*>)|>>).*',
+        'attack': '"< >" or ">>" can be used to modify the content of a page ',
+        'alone': 1
+    },
+    {
+        'fp': '.*!.*',
+        'attack': '"!"  is often used in SSI(Server Side Include) attacks.',
+        'alone': 1
+    },{
+        'fp': '.*(\(.*\)).*',
+        'attack': '"()"  is often used in cross site scripting attacks.',
+        'alone': 1
+    },
+    {
+        'fp': '.*<\?.*',
+        'attack': '"<?"  is often used to inject php commands',
+        'alone': 1
+    },
+    {
+        'fp': '.*`.*`.*',
+        'attack': '"`"  is often used to execute perl commands',
+        'alone': 1
+    }, {
+        'fp': '.*~.*', #TODO discover the right limit
+        'attack': '"~" is ofted used by attackers to understand who is a valid user',
+        'alone': 1
+    }, {
+        'fp': '.{2000}', #TODO discover the right limit
+        'attack': 'very long requests can be used to test overflows',
+        'alone': 1
+    },{
+        'fp': '.*(/|%2f){50}.*',
+        'attack': 'lots of "/"  are used to exploit a well known apache bug',
+        'alone': 1
+    },{
+        'fp': '.*autoexec\.bat.*',
+        'attack': 'autoexec.bat is used to insert command in widows, when it boots.',
+        'alone': 1
+    },{
+        'fp': '.*root\.exe.*',
+        'attack': 'root.exe is a backdoor left by some worm. It is a copu of cmd.exe.',
+        'alone': 1
+    },
+    {
+        'fp': '.*nobody\.cgi.*',
+        'attack': '"nobody.cgi 1.0 A free Perl script from VerySimple" is a popular backdoor.',
+        'alone': 1
+    },{
+        'fp': '.*\[drive-letter\]:\\\\WINNT\\\\system32\\\\LogFiles\\\\.*',
+        'attack': '"[drive-letter]:\WINNT\system32\LogFiles\" is used to look at logfiles.',
+        'alone': 1
+    },{
+        'fp': '.*\[drive-letter\]:\\\\WINNT\\\\system32\\\\repair\\\\.*',
+        'attack': '"[drive-letter]:\WINNT\system32\repair\" this directory contains the backup password file on NT systems.',
+        'alone': 1
+    },{
+        'fp': '.*\[server-name\]:SYSTEM:PUBLIC.*',
+        'attack': '"[server-name]:SYSTEM:PUBLIC" is used to look at Novel files remotely.',
+        'alone': 1
+    },
+    {
+        'fp': '.*\+.*',
+        'attack': '"+"  is often used as black space, with root.exe.',
+        'alone': 0
+    },
+    {
+        'fp': '.*\|.*',
+        'attack': '"|" may be used to execute multiple commands ',
+        'alone':
+        0  #this mean that this heuristic itself is not sign of an attack, but if it comes after one of the preceeding it can be
+    },
+    {
+        'fp': '.*;.*',
+        'attack': '";" may be used to execute multiple commands ',
+        'alone': 0
+    },
+    {
+        'fp': '.*(/|%2f)bin(/|%2f)ls.*',
+        'attack': '"/bin/ls" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*cmd\.exe.*',
+        'attack': '"cmd.exe" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*(/|%2f)bin(/|%2f)id.*',
+        'attack': '"/bin/id" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*(/|%2f)bin(/|%2f)rm.*',
+        'attack': '"/bin/rm" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*wget.*',
+        'attack': '"wget" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*tftp.*',
+        'attack': '"tftp" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*cat.*', #TODO cat may appear insiede many worlds, improve this
+        'attack': '"cat" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*echo.*',
+        'attack': '"echo" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*ps.*',
+        'attack': '"ps" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*kill.*',
+        'attack': '"kill" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*killall.*',
+        'attack': '"killall" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*uname.*',
+        'attack': '"uname" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*cc.*',
+        'attack': '"cc" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*gcc.*',
+        'attack': '"gcc" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*python.*',
+        'attack': '"python" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*perl.*',
+        'attack': '"perl" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*java.*',
+        'attack': '"java" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*pyspark.*',
+        'attack': '"pyspark" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*spark.*',
+        'attack': '"spark" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*mail.*',
+        'attack': '"mail" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*xterm.*',
+        'attack': '"xterm" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*Xeyes.*',
+        'attack': '"Xeyes" is a common command used by worms and attackers ',
+        'alone': 0
+    },
+    {
+        'fp': '.*(/|%2f)ch.*',
+        'attack': 'chown, chmod, chgrp and so on are a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*(/|%2f)etc(/|%2f)passwd.*',
+        'attack': '"/etc/passwd" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*(/|%2f)etc(/|%2f)master.passwd.*',
+        'attack': '"/etc/master.passwd" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*(/|%2f)etc(/|%2f)shadow.*',
+        'attack': '"/etc/shadow" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*(/|%2f)etc(/|%2f)motd.*',
+        'attack': '"/etc/motd" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*(/|%2f)usr(/|%2f)local(/|%2f)apache(/|%2f)conf(/|%2f)httpd\.conf.*',
+        'attack': '"/usr/local/apache/conf/httpd.conf" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*(/|%2f)etc(/|%2f)hosts.*',
+        'attack': '"/etc/hosts" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*(/|%2f)etc(/|%2f)inetd\.conf.*',
+        'attack': '"/etc/inetd.conf" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*htpasswd.*',
+        'attack': '"htpasswd" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*htaccess.*',
+        'attack': '"htaccess" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*htgroup.*',
+        'attack': '"htgroup" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*access_log.*',
+        'attack': '"access_log" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*error_log.*',
+        'attack': '"error_log" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*winnt\\repair\\sam.*',
+        'attack': '"winnt\repair\sam" is a common command used by worms and attackers ',
+        'alone': 0
+    }, {
+        'fp': '.*\*.*',
+        'attack': '"*" is ofted used by attackers as command parameter',
+        'alone': 0
+    }, {
+        'fp': ".*'.*", 
+        'attack': '"\'" is often used for SQL injection',
+        'alone': 0
+    }, {
+        'fp': ".*(#|({.*})|\^|(\[.*\])).*", #TODO discover the right limit
+        'attack': '"\'" is often used for SQL injection',
+        'alone': 0
+    }
+]#TODO for a better performance I should also convert all these fingerprints in HEX
