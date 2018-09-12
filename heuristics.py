@@ -14,6 +14,7 @@ def fileToDic(filePath):
         content = f.readlines()
     log = []
     for conn in content:
+
         w = conn.split()
         margin = 0
         request = re.findall('"([\s\S]*?)"', conn)[0] #return the request resource, with method, server path, ant protol version
@@ -23,6 +24,8 @@ def fileToDic(filePath):
             #print w
             if len(request.split())<2:
                 margin = 1
+        elif len(request.split()) >= 4:
+            margin = 3 - len(request.split()) #in this way if it is for example 4 margin becomes -1, and the status code wt, will be correct
         d = {
             "RemoteHostAdress" : w[0],
             "RemoteLogName" : w[1],
@@ -143,7 +146,7 @@ def sessionConverter(log):
     #print "----------------------------------------------------------------------"
     #print sessions
     with open('sessions.json', 'w') as fp:
-        json.dump(sessions, fp)
+        json.dump(sessions, fp, indent=4, separators=(',', ': '))
     return sessions
 
 
@@ -186,6 +189,8 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                 times = []
                 reqs= []
                 for con in s["connections"]:
+                    if con["StatusCode"] == 'HTTP/1.1"':
+                        print con
                     reqs.append(con["ServerPath"]) #used to count repeated requests
                     if ".jpg " in con["ServerPath"] or ".png " in con["ServerPath"] or ".svg " in con["ServerPath"] or ".tiff " in con["ServerPath"] or ".gif " in con["ServerPath"] or ".ico " in con["ServerPath"]:
                         images += 1
