@@ -48,6 +48,19 @@ def fileToDic(filePath):
     f.close()
     return log
 
+def logToCsv(log):
+    l = log[0]
+    with open('log2.csv', 'wb') as csvfile:
+        sw = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        k = l.keys()
+        k.append("requestLength")
+        sw.writerow(k)
+        for l in log:
+            k = l.values()
+            k.append(len(l["ServerPath"]))
+            if len(l["ServerPath"]) == 72 :
+                print l
+            sw.writerow(k)
 
 
 
@@ -151,18 +164,18 @@ def sessionConverter(log):
 
 
 def sessionDatasetConverter(sessions):  #this functions takes the raw sessions and ectract the features used in https://www.researchgate.net/publication/276139295_Agglomerative_Approach_for_Identification_and_Elimination_of_Web_Robots_from_Web_Server_Logs_to_Extract_Knowledge_about_Actual_Visitors
-    """file = './access_log'
+    file = './access_log'
     l = fileToDic(file)
     checkRefAndUserAgentFingerprints(l)
     checkReqFingerprints(l)
-    checkStatusCode(l)"""
+    checkStatusCode(l)
     print "-------------------REPORT DONE------------------------"
-    with open('sessions.csv', 'wb') as csvfile:
+    with open('sessions2.csv', 'wb') as csvfile:
         sw = csv.writer(
             csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        sw.writerow(['TotalHits','%Image', '%HTML', '%BinaryDoc', '%BinaryExe', '%ASCII', '%Zip', '%Multimedia', '%OtherFile', 'BandWidth', 'SessionTime','avgHtmlReqTime', 'TotalNightTimeReq', 'TotalRepeatedReq', '%Errors', '%Get', '%Post', '%OtherMethod', 'IsRobot.txtVisited', '%Head', '%UnassignedReferrer'])
+        sw.writerow(['TotalHits','%Image', '%HTML', '%BinaryDoc', '%BinaryExe', '%ASCII', '%Zip', '%Multimedia', '%OtherFile', 'BandWidth', 'SessionTime','avgHtmlReqTime', 'TotalNightTimeReq', 'TotalRepeatedReq', '%Errors', '%Get', '%Post', '%OtherMethod', 'IsRobot.txtVisited', '%Head', '%UnassignedReferrer','nMisbehaviour'])
         for k in sessions: #iterate over session outer key
-            for s in sessions[k]: #iterate over sessions with the same outer key
+            for s in sessions[k]: #iterate over sessions with the same inner key
                 totalHits = len(s["connections"])
                 FMT = '%d/%b/%Y:%H:%M:%S'
                 sessionTime = (datetime.strptime(
@@ -188,9 +201,12 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                 IsRobotTxtVisited = 0
                 times = []
                 reqs= []
+                nMisbehaviour=0
                 for con in s["connections"]:
-                    if con["StatusCode"] == 'HTTP/1.1"':
-                        print con
+                    
+                    k = hashlib.md5(bencode.bencode(con)).hexdigest()
+                    if k in report:
+                        nMisbehaviour += report[k]["alerts"]
                     reqs.append(con["ServerPath"]) #used to count repeated requests
                     if ".jpg " in con["ServerPath"] or ".png " in con["ServerPath"] or ".svg " in con["ServerPath"] or ".tiff " in con["ServerPath"] or ".gif " in con["ServerPath"] or ".ico " in con["ServerPath"]:
                         images += 1
@@ -264,7 +280,7 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                     pAscii, pExe, pMultimedia, pOtherFile, bandWidth,
                     sessionTime, avgHtmlReqTime, totalNightTimeReq,
                     totalRepeatedReq, pErrors, pGet, pPost,
-                    pOtherMethod, IsRobotTxtVisited, pHead, pUnassignedReferrer
+                    pOtherMethod, IsRobotTxtVisited, pHead, pUnassignedReferrer,nMisbehaviour
                 ])
 
 
@@ -283,6 +299,9 @@ l = fileToDic(file)
 sessionConverter(l)
 sessionDatasetConverter(sessions)
 
+
 #TODO: find the right limit for long requests
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
+#TODO: add GEOIP information
+#TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistema

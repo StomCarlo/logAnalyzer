@@ -45,7 +45,7 @@
         "attack": "\"~\" is ofted used by attackers to understand who is a valid user"
     },
     {
-        "fp": ".{2000}", 
+        "fp": ".{600}", 
         "alone": 1,
         "attack": "very long requests can be used to test overflows"
     },
