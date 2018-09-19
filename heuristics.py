@@ -3,49 +3,54 @@ import json
 import hashlib
 import bencode
 import csv
+import apache_log_parser as alp
 from datetime import datetime
+from pprint import pprint
 
 report = {}
 
 sessions = {}
 
 def fileToDic(filePath):
+    line_parser = alp.make_parser(
+        "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+    )
     with open(filePath) as f:
         content = f.readlines()
-    log = []
-    for conn in content:
+        log = []
+        i=0
+        for conn in content:
+            i+=1
 
-        w = conn.split()
-        margin = 0
-        request = re.findall('"([\s\S]*?)"', conn)[0] #return the request resource, with method, server path, ant protol version
-        wr = request.split()
-        if len(request.split()) < 3: # this if has been made to manage the requests with a not complete body
-            wr.insert(0, 'NULL')
-            #print w
-            if len(request.split())<2:
-                margin = 1
-        elif len(request.split()) >= 4:
-            margin = 3 - len(request.split()) #in this way if it is for example 4 margin becomes -1, and the status code wt, will be correct
-        d = {
-            "RemoteHostAdress" : w[0],
-            "RemoteLogName" : w[1],
-            "UserName" : w[2],
-            "TimeStamp" : w[3][1:len(w[3])],
-            "TimeZone" : w[4],
-            "StatusCode" : w[8 - margin],
-            "ReturnSize" : w[9 - margin],
-            "Referrer" : w[10 - margin],
-            "UserAgent" : ' '.join(w[11 - margin : len(w)])
-        }
-        d["RequestMethod"] = wr[0]
-        if len(wr) < 3 :
-            d["ServerPath"] = wr[-1]  #sometimes the resource requested contains spaces
-            d["ProtocolVersion"] = "NULL"
-        else:
-            d["ServerPath"] = ' '.join(wr[1:-1])
-            d["ProtocolVersion"] = wr[-1]
-        log.append(d)
+            logData = line_parser(
+                conn
+            )
+            if i == 26698:
+                pprint(logData)
+
+            t = logData['time_received'].split()
+
+            d = {
+                "RemoteHostAdress" : logData['remote_host'],
+                "RemoteLogName" : logData['remote_logname'],
+                "UserName" : logData['remote_user'],
+                "TimeStamp" : t[0][1:len(t)],
+                "TimeZone" : t[1],
+                "StatusCode" : logData['status'],
+                "ReturnSize" : logData['response_bytes_clf'],
+                "Referrer" : logData['request_header_referer'],
+                "UserAgent" : logData['request_header_user_agent'], #if needed the ua can be splitted in its parts
+                "RequestMethod": logData["request_method"],
+                "ProtocolVersion": logData["request_http_ver"],
+                "ServerPath": logData["request_url"]
+            }
+            if "request_url_query_list" in logData:
+                  d["ReqParameters"] = logData["request_url_query_list"]
+            else:
+                d["ReqParameters"] = []
+            log.append(d)
     f.close()
+    print log[0]
     return log
 
 def logToCsv(log):
@@ -203,7 +208,7 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                 reqs= []
                 nMisbehaviour=0
                 for con in s["connections"]:
-                    
+
                     k = hashlib.md5(bencode.bencode(con)).hexdigest()
                     if k in report:
                         nMisbehaviour += report[k]["alerts"]
@@ -296,8 +301,8 @@ print report
 
 file = './access_log'
 l = fileToDic(file)
-sessionConverter(l)
-sessionDatasetConverter(sessions)
+#sessionConverter(l)
+#sessionDatasetConverter(sessions)
 
 
 #TODO: find the right limit for long requests
