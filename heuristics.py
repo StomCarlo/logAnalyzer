@@ -34,7 +34,7 @@ def fileToDic(filePath):
                 "RemoteHostAdress" : logData['remote_host'],
                 "RemoteLogName" : logData['remote_logname'],
                 "UserName" : logData['remote_user'],
-                "TimeStamp" : t[0][1:len(t)],
+                "TimeStamp" : t[0][1:len(t[0])],
                 "TimeZone" : t[1],
                 "StatusCode" : logData['status'],
                 "ReturnSize" : logData['response_bytes_clf'],
@@ -301,7 +301,7 @@ print report
 
 file = './access_log'
 l = fileToDic(file)
-#sessionConverter(l)
+sessionConverter(l)
 #sessionDatasetConverter(sessions)
 
 
