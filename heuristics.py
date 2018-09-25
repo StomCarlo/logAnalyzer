@@ -5,7 +5,9 @@ import bencode
 import csv
 import apache_log_parser as alp
 from datetime import datetime
-from pprint import pprint
+import dnsbls
+from geoip import geolite2
+
 
 report = {}
 
@@ -18,15 +20,11 @@ def fileToDic(filePath):
     with open(filePath) as f:
         content = f.readlines()
         log = []
-        i=0
         for conn in content:
-            i+=1
 
             logData = line_parser(
                 conn
             )
-            if i == 26698:
-                pprint(logData)
 
             t = logData['time_received'].split()
 
@@ -38,36 +36,70 @@ def fileToDic(filePath):
                 "TimeZone" : t[1],
                 "StatusCode" : logData['status'],
                 "ReturnSize" : logData['response_bytes_clf'],
-                "Referrer" : logData['request_header_referer'],
-                "UserAgent" : logData['request_header_user_agent'], #if needed the ua can be splitted in its parts
+                "Referrer" : '"'+logData['request_header_referer']+'"',
+                "UserAgent" :'"'+ logData['request_header_user_agent']+'"', #if needed the ua can be splitted in its parts
                 "RequestMethod": logData["request_method"],
                 "ProtocolVersion": logData["request_http_ver"],
                 "ServerPath": logData["request_url"]
             }
-            if "request_url_query_list" in logData:
-                  d["ReqParameters"] = logData["request_url_query_list"]
+            if "request_url_query_simple_dict" in logData:
+                d["ReqParameters"] = logData["request_url_query_simple_dict"]
             else:
-                d["ReqParameters"] = []
+                d["ReqParameters"] = {}
+            if "request_url_path" in logData:
+                d["Resource"] = logData["request_url_path"]
+            else:
+                d["Resource"] = ""
             log.append(d)
     f.close()
-    print log[0]
+    #print log[0]
     return log
 
-def logToCsv(log):
+def logToCsv(log, dst, short = True): #dst is the name of the csv
     l = log[0]
-    with open('log2.csv', 'wb') as csvfile:
+    with open(dst, 'wb') as csvfile:
         sw = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        k = l.keys()
+        k = [key for key, value in l.items() if key != 'ReqParameters']
         k.append("requestLength")
+        k.append("nParameters")
+        param = set() #it will be the list of all the parameters
+        if not short:
+            for l in log:
+                for key in l["ReqParameters"].keys():
+                    param.add('"' + key + '"')
+            param = list(param)
+            k = k + param
         sw.writerow(k)
         for l in log:
-            k = l.values()
+            k = [
+                value for key, value in l.items()
+                if key != 'ReqParameters'
+            ]
             k.append(len(l["ServerPath"]))
-            if len(l["ServerPath"]) == 72 :
-                print l
+            k.append(len(l["ReqParameters"]))
+            if not short:
+                for p in param:
+                    p = p[1:-1] #removing quotes
+                    if p in l["ReqParameters"]:
+                        k.append('"' + l["ReqParameters"][p] + '"')
+                    else:
+                        k.append("")
             sw.writerow(k)
 
+def normalLog(logPath):
+    log = fileToDic(logPath)
+    normalLog = []
+    checkRefAndUserAgentFingerprints(log)
+    checkReqFingerprints(log)
+    checkStatusCode(log)
 
+    for el in log:
+        k = hashlib.md5(bencode.bencode(el)).hexdigest()
+        if not k in report:
+            normalLog.append(el.copy())
+
+    i = logPath.rfind('/') + 1 if logPath.rfind('/') != -1 else 0
+    logToCsv(normalLog, 'normal' + logPath[i:len(logPath)] +'.csv', False)
 
 def checkReqFingerprints(log):
     with open('fingerprints.json') as fp:
@@ -75,22 +107,32 @@ def checkReqFingerprints(log):
 
     for el in log:
         alerts = []
+        nAlone = 0
+        nOther = 0
         for fp in fingerprints:
             if re.match(fp['fp'], el['ServerPath']):
                 if fp['alone'] or (not(fp['alone']) and len(alerts) > 0):
                     alerts.append(fp['attack'])
+                if fp['alone']:
+                    nAlone += 1
+                else:
+                    nOther +=1
         if len(alerts) > 0 :
             k = hashlib.md5(bencode.bencode(el)).hexdigest() #compute the MD5 of the connection
             if k in report:
                 report[k]["alerts"] += len(alerts)
+                report[k]["aloneAlerts"] += nAlone
+                report[k]["otherAlerts"] += nOther
             else:
                 report[k] = {
                     "connection": el,
-                    "alerts" : len(alerts)
+                    "alerts" : len(alerts),
+                    "aloneAlerts" : nAlone,
+                    "otherAlerts" : nOther
                 }
-            print el['ServerPath']
-            print "the connection scored "+ str(len(alerts)) + " misbehaviours:"
-            print alerts
+            print( el['ServerPath'])
+            print( "the connection scored "+ str(len(alerts)) + " misbehaviors:")
+            print( alerts)
 
 
 def checkRefAndUserAgentFingerprints(log):
@@ -99,41 +141,57 @@ def checkRefAndUserAgentFingerprints(log):
 
     for el in log:
         alerts = []
+        nAlone = 0
+        nOther = 0
+
         for fp in fingerprints:
             if re.match(fp['fp'], el['Referrer']) or re.match(fp['fp'], el['UserAgent']) :
                 if fp['alone'] or (not (fp['alone']) and len(alerts) > 0):
                     alerts.append(fp['attack'])
+                if fp['alone']:
+                    nAlone += 1
+                else:
+                    nOther +=1
+
         if len(alerts) > 0:
             k = hashlib.md5(bencode.bencode(
                 el)).hexdigest()  #compute the MD5 of the connection
             if k in report:
                 report[k]["alerts"] += len(alerts)
+                report[k]["aloneAlerts"] += nAlone
+                report[k]["otherAlerts"] += nOther
             else:
-                report[k] = {"connection": el, "alerts": len(alerts)}
-            print "Referrer: " ,el['Referrer']
-            print "UserAgent: " ,el['UserAgent']
-            print "the connection scored " + str(
-                len(alerts)) + " misbehaviours:"
-            print alerts
+                report[k] = {
+                    "connection": el,
+                    "alerts": len(alerts),
+                    "aloneAlerts": nAlone,
+                    "otherAlerts": nOther
+                }
+            print( "Referrer: " ,el['Referrer'])
+            print( "UserAgent: " ,el['UserAgent'])
+            print( "the connection scored " + str(
+                len(alerts)) + " misbehaviors:")
+            print( alerts)
 
 def checkStatusCode(log):
     for el in log:
-        count = 0;
+        count = 0
         if el["StatusCode"] == "500":
             count += 1
-            print el
-            print "Sometimes server error is generated by attacker attempt to avoid security checks whith special character coding"
+            print( el)
+            print( "Sometimes server error is generated by attacker attempt to avoid security checks whith special character coding")
         if el["StatusCode"] == "403":
             count +=1
-            print el
-            print "Denied error, it is possible that an attacker is tryng to access forbidden files"
+            print( el)
+            print( "Denied error, it is possible that an attacker is tryng to access forbidden files")
         if count > 0:
             k = hashlib.md5(bencode.bencode(
                 el)).hexdigest()  #compute the MD5 of the connection
             if k in report:
                 report[k]["alerts"] += count
+                report[k]["aloneAlerts"] += count
             else:
-                report[k] = {"connection": el, "alerts": count}
+                report[k] = {"connection": el, "alerts": count, "aloneAlerts": count, "otherAlerts" : 0}
 
 def sessionConverter(log):
 
@@ -174,11 +232,18 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
     checkRefAndUserAgentFingerprints(l)
     checkReqFingerprints(l)
     checkStatusCode(l)
-    print "-------------------REPORT DONE------------------------"
+    print("-------------------REPORT DONE------------------------")
     with open('sessions2.csv', 'wb') as csvfile:
         sw = csv.writer(
             csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        sw.writerow(['TotalHits','%Image', '%HTML', '%BinaryDoc', '%BinaryExe', '%ASCII', '%Zip', '%Multimedia', '%OtherFile', 'BandWidth', 'SessionTime','avgHtmlReqTime', 'TotalNightTimeReq', 'TotalRepeatedReq', '%Errors', '%Get', '%Post', '%OtherMethod', 'IsRobot.txtVisited', '%Head', '%UnassignedReferrer','nMisbehaviour'])
+        sw.writerow([
+            'TotalHits', '%Image', '%HTML', '%BinaryDoc', '%BinaryExe',
+            '%ASCII', '%Zip', '%Multimedia', '%OtherFile', 'BandWidth',
+            'SessionTime', 'avgHtmlReqTime', 'TotalNightTimeReq',
+            'TotalRepeatedReq', '%Errors', '%Get', '%Post', '%OtherMethod',
+            'IsRobot.txtVisited', '%Head', '%UnassignedReferrer',
+            'nMisbehavior', 'nAloneMisbehavior', 'nOtherMisbehavior', 'isBlacklisted', 'geoIp'
+        ])
         for k in sessions: #iterate over session outer key
             for s in sessions[k]: #iterate over sessions with the same inner key
                 totalHits = len(s["connections"])
@@ -206,12 +271,26 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                 IsRobotTxtVisited = 0
                 times = []
                 reqs= []
-                nMisbehaviour=0
+                nMisbehavior=0
+                nAloneMisbehavior = 0
+                nOtherMibehavior = 0
+                isBlackListed = 0
+                geoIp = ''
+                if dnsbls.check(s["connections"][0]["RemoteHostAdress"]):
+                    isBlackListed = 1
+                c =  geolite2.lookup(s["connections"][0]["RemoteHostAdress"])
+                if c is not None:
+                    geoIp =c.country
+                else:
+                    geoIp = ""
+
                 for con in s["connections"]:
 
                     k = hashlib.md5(bencode.bencode(con)).hexdigest()
                     if k in report:
-                        nMisbehaviour += report[k]["alerts"]
+                        nMisbehavior += report[k]["alerts"]
+                        nAloneMisbehavior += report[k]["aloneAlerts"]
+                        nOtherMibehavior += report[k]["otherAlerts"]
                     reqs.append(con["ServerPath"]) #used to count repeated requests
                     if ".jpg " in con["ServerPath"] or ".png " in con["ServerPath"] or ".svg " in con["ServerPath"] or ".tiff " in con["ServerPath"] or ".gif " in con["ServerPath"] or ".ico " in con["ServerPath"]:
                         images += 1
@@ -253,7 +332,7 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                     if con["ReturnSize"] != '"-"' and con["ReturnSize"] != '-':
                         bandWidth += int(con["ReturnSize"])
                     conHour = datetime.strptime(con["TimeStamp"], FMT).hour
-                    if conHour >= 00 and conHour <= 07:
+                    if conHour >= 00 and conHour <= 7:
                         totalNightTimeReq +=1
                 pImages = (images/totalHits) * 100
                 pHtml = (html/totalHits) *100
@@ -285,7 +364,8 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                     pAscii, pExe, pMultimedia, pOtherFile, bandWidth,
                     sessionTime, avgHtmlReqTime, totalNightTimeReq,
                     totalRepeatedReq, pErrors, pGet, pPost,
-                    pOtherMethod, IsRobotTxtVisited, pHead, pUnassignedReferrer,nMisbehaviour
+                    pOtherMethod, IsRobotTxtVisited, pHead, pUnassignedReferrer,
+                    nMisbehavior, nAloneMisbehavior, nOtherMibehavior, isBlackListed, geoIp
                 ])
 
 
@@ -295,14 +375,17 @@ l = fileToDic(file)
 checkReqFingerprints(l)
 checkRefAndUserAgentFingerprints(l)
 checkStatusCode(l)
-print "..........................................................."
-print report
+print( "...........................................................")
+print( report)
 """
-
+"""
 file = './access_log'
 l = fileToDic(file)
 sessionConverter(l)
 #sessionDatasetConverter(sessions)
+"""
+
+normalLog('./access_log')
 
 
 #TODO: find the right limit for long requests
