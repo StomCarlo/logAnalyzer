@@ -3,15 +3,74 @@ import json
 import hashlib
 import bencode
 import csv
-import apache_log_parser as alp
-from datetime import datetime
+import pandas
 import dnsbls
+import apache_log_parser as alp
+import numpy as np
+from datetime import datetime
 from geoip import geolite2
-
+from keras.preprocessing.text import hashing_trick
+from sklearn.preprocessing import MinMaxScaler
+from sklearn import svm
 
 report = {}
-
+ipsCache = {}
 sessions = {}
+
+
+def text2hash(df):
+    for el in df.columns:
+        if not isNumeric(df[el]) :
+            #print el, df[el][0]
+            df[el] = df[el].apply(
+                lambda x: hashing_trick(str(x), 200, hash_function='md5', filters='!"#$%&()*+,-./:;<=>?@[\]^`{|}~ '))
+
+def isNumeric(col):
+    for el in col:
+        if not isinstance(el, int) and not isinstance(el, float) and el is not None:
+            return False
+    return True
+
+
+def removeListValues(matrix):
+    i = 0
+    for row in matrix[:, :]:
+        j = 0
+        for el in row:
+            if isinstance(el, list):
+                if len(el) > 0:
+                    matrix[i][j] = float(el[0])
+                else:
+                    matrix[i][j] = -1
+            j += 1
+        i += 1
+    return matrix
+
+
+def loadDataset(path):
+    # load the dataset
+    dt = pandas.read_csv(
+        path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
+        engine='python',
+        skipfooter=0)
+
+    text2hash(dt)
+    dt = dt.values
+    dt = removeListValues(dt)
+    i=0
+    for row in dt[:,:]:
+        j=0
+        for el in row[:]:
+            if (not isinstance(el,float) or np.isnan(el)):
+                dt[i][j] = -1.0
+            j+=1
+        i +=1
+    # normalize the dataset
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    dt = scaler.fit_transform(dt[:,:])
+    return dt
+
+
 
 def fileToDic(filePath):
     line_parser = alp.make_parser(
@@ -75,13 +134,17 @@ def logToCsv(log, dst, short = True): #dst is the name of the csv
                 value for key, value in l.items()
                 if key != 'ReqParameters'
             ]
+            k[3] = 0 if k[3] == '-' else float(k[3]) #converting the return size to float
             k.append(len(l["ServerPath"]))
             k.append(len(l["ReqParameters"]))
             if not short:
                 for p in param:
                     p = p[1:-1] #removing quotes
                     if p in l["ReqParameters"]:
-                        k.append('"' + l["ReqParameters"][p] + '"')
+                        try:
+                            k.append(float(l["ReqParameters"][p]))
+                        except:
+                            k.append('"' + l["ReqParameters"][p] + '"')
                     else:
                         k.append("")
             sw.writerow(k)
@@ -276,13 +339,17 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                 nOtherMibehavior = 0
                 isBlackListed = 0
                 geoIp = ''
-                if dnsbls.check(s["connections"][0]["RemoteHostAdress"]):
-                    isBlackListed = 1
-                c =  geolite2.lookup(s["connections"][0]["RemoteHostAdress"])
-                if c is not None:
-                    geoIp =c.country
+                ip = s["connections"][0]["RemoteHostAdress"]
+                if ip in ipsCache:
+                    isBlackListed = ipsCache[ip][0]
+                    geoIp = ipsCache[ip][1]
                 else:
-                    geoIp = ""
+                    if dnsbls.check(ip):
+                        isBlackListed = 1
+                    c =  geolite2.lookup(ip)
+                    if c is not None:
+                        geoIp =c.country
+                    ipsCache[ip] = [isBlackListed, geoIp]
 
                 for con in s["connections"]:
 
@@ -382,14 +449,33 @@ print( report)
 file = './access_log'
 l = fileToDic(file)
 sessionConverter(l)
-#sessionDatasetConverter(sessions)
+sessionDatasetConverter(sessions)
 """
 
-normalLog('./access_log')
+#normalLog('./access_log')
+dt = loadDataset('./normalaccess_log.csv')
+resources = {}
+for con in dt:
+    if con[1] in resources:
+        resources[con[1]]["data"].append(con)
+    else:
+        resources[con[1] ]= {}
+        resources[con[1]]["data"] = [con]
+        resources[con[1]]["clf"] = svm.OneClassSVM(nu=0.5, kernel="rbf", gamma=0.01)
+
+print "splitted for resource"
+
+for k in resources:
+    resources[k]["clf"].fit( np.array(resources[k]["data"])[:, 2:])
+
+print "models trained"
+
+print resources[dt[0][1]]["clf"].predict(np.array(resources[dt[0][1]]["data"])[0:2, 2:])
+
 
 
 #TODO: find the right limit for long requests
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
 #TODO: add GEOIP information
-#TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistema
+#TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
