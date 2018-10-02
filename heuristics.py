@@ -108,6 +108,9 @@ def normalLog(logPath, splitByRes = True):
             k = hashlib.md5(bencode.bencode(el)).hexdigest()
             if not k in report: # if the connection has not been reported by the heuristics
                 res = el["Resource"]
+                if res == '/areariservata':
+                    print el["ServerPath"]
+
                 if not res in normalLog:
                     normalLog[res] = []
                 normalLog[res].append(el.copy())

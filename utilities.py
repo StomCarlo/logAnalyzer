@@ -38,7 +38,8 @@ def loadDataset(path):
     dt = pandas.read_csv(
         path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
         engine='python',
-        skipfooter=0)
+        skipfooter=0,
+        sep=',')
 
     text2hash(dt)
     dt = dt.values
