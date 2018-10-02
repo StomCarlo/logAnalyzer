@@ -126,13 +126,13 @@ def normalLog(logPath, splitByRes = True):
         if not os.path.exists(directory):
             os.makedirs(directory)
         for k in normalLog:
-            logToCsv(normalLog[k], directory + k.replace('/', '_') + '.csv')
+            logToCsv(normalLog[k], directory + '/' + k.replace('/', '_') + '.csv', False)
 
     else:
         logToCsv(normalLog, directory +'.csv', False)
 
 def checkReqFingerprints(log):
-    with open('fingerprints.json') as fp:
+    with open('./fingerprints/fingerprints.json') as fp:
         fingerprints = json.load(fp)
 
     for el in log:
@@ -166,7 +166,7 @@ def checkReqFingerprints(log):
 
 
 def checkRefAndUserAgentFingerprints(log):
-    with open('referrer-UserAgentFP.json') as fp:
+    with open('./fingerprints/referrer-UserAgentFP.json') as fp:
         fingerprints = json.load(fp)
 
     for el in log:
