@@ -1,74 +1,21 @@
+import os
 import re
 import json
 import hashlib
 import bencode
 import csv
-import pandas
 import dnsbls
+import utilities
 import apache_log_parser as alp
 import numpy as np
 from datetime import datetime
 from geoip import geolite2
-from keras.preprocessing.text import hashing_trick
-from sklearn.preprocessing import MinMaxScaler
 from sklearn import svm
 
 report = {}
 ipsCache = {}
 sessions = {}
 
-
-def text2hash(df):
-    for el in df.columns:
-        if not isNumeric(df[el]) :
-            #print el, df[el][0]
-            df[el] = df[el].apply(
-                lambda x: hashing_trick(str(x), 200, hash_function='md5', filters='!"#$%&()*+,-./:;<=>?@[\]^`{|}~ '))
-
-def isNumeric(col):
-    for el in col:
-        if not isinstance(el, int) and not isinstance(el, float) and el is not None:
-            return False
-    return True
-
-
-def removeListValues(matrix):
-    i = 0
-    for row in matrix[:, :]:
-        j = 0
-        for el in row:
-            if isinstance(el, list):
-                if len(el) > 0:
-                    matrix[i][j] = float(el[0])
-                else:
-                    matrix[i][j] = -1
-            j += 1
-        i += 1
-    return matrix
-
-
-def loadDataset(path):
-    # load the dataset
-    dt = pandas.read_csv(
-        path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
-        engine='python',
-        skipfooter=0)
-
-    text2hash(dt)
-    dt = dt.values
-    dt = removeListValues(dt)
-    i=0
-    for row in dt[:,:]:
-        j=0
-        for el in row[:]:
-            if (not isinstance(el,float) or np.isnan(el)):
-                dt[i][j] = -1.0
-            j+=1
-        i +=1
-    # normalize the dataset
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    dt = scaler.fit_transform(dt[:,:])
-    return dt
 
 
 
@@ -149,20 +96,40 @@ def logToCsv(log, dst, short = True): #dst is the name of the csv
                         k.append("")
             sw.writerow(k)
 
-def normalLog(logPath):
+def normalLog(logPath, splitByRes = True):
     log = fileToDic(logPath)
-    normalLog = []
     checkRefAndUserAgentFingerprints(log)
     checkReqFingerprints(log)
     checkStatusCode(log)
 
-    for el in log:
-        k = hashlib.md5(bencode.bencode(el)).hexdigest()
-        if not k in report:
-            normalLog.append(el.copy())
+    if splitByRes:
+        normalLog = {} #dictionary in which the keys are the resources and the values are the normal connections for that resource
+        for el in log:
+            k = hashlib.md5(bencode.bencode(el)).hexdigest()
+            if not k in report: # if the connection has not been reported by the heuristics
+                res = el["Resource"]
+                if not res in normalLog:
+                    normalLog[res] = []
+                normalLog[res].append(el.copy())
+
+    else:
+        normalLog = [] #the list of all normal connection
+        for el in log:
+            k = hashlib.md5(bencode.bencode(el)).hexdigest()
+            if not k in report:
+                normalLog.append(el.copy())
 
     i = logPath.rfind('/') + 1 if logPath.rfind('/') != -1 else 0
-    logToCsv(normalLog, 'normal' + logPath[i:len(logPath)] +'.csv', False)
+    directory = './outputs/' + 'normal' + logPath[i:len(logPath)]
+
+    if splitByRes:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        for k in normalLog:
+            logToCsv(normalLog[k], directory + k.replace('/', '_') + '.csv')
+
+    else:
+        logToCsv(normalLog, directory +'.csv', False)
 
 def checkReqFingerprints(log):
     with open('fingerprints.json') as fp:
@@ -428,13 +395,15 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                 #TODO add other features from our heuristics
                 sw.writerow([
                     totalHits, pImages, pHtml, pDoc, pExe,
-                    pAscii, pExe, pMultimedia, pOtherFile, bandWidth,
+                    pAscii, pZip, pMultimedia, pOtherFile, bandWidth,
                     sessionTime, avgHtmlReqTime, totalNightTimeReq,
                     totalRepeatedReq, pErrors, pGet, pPost,
                     pOtherMethod, IsRobotTxtVisited, pHead, pUnassignedReferrer,
                     nMisbehavior, nAloneMisbehavior, nOtherMibehavior, isBlackListed, geoIp
                 ])
 
+
+normalLog('./access_log')
 
 """
 file = './access_log'
@@ -452,8 +421,9 @@ sessionConverter(l)
 sessionDatasetConverter(sessions)
 """
 
+"""
 #normalLog('./access_log')
-dt = loadDataset('./normalaccess_log.csv')
+dt = utilities.loadDataset('./normalaccess_log.csv')
 resources = {}
 for con in dt:
     if con[1] in resources:
@@ -470,8 +440,10 @@ for k in resources:
 
 print "models trained"
 
-print resources[dt[0][1]]["clf"].predict(np.array(resources[dt[0][1]]["data"])[0:2, 2:])
+d = np.array(resources[dt[0][1]]["data"])[0:10, 2:]
 
+print resources[dt[0][1]]["clf"].predict(d)
+"""
 
 
 #TODO: find the right limit for long requests
