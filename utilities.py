@@ -43,7 +43,7 @@ def removeListValues(matrix):
     return matrix
 
 
-def loadDataset(path):
+def loadDataset_oneHotEncoder(path):
     # load the dataset
     dt = pandas.read_csv(
         path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
@@ -55,6 +55,5 @@ def loadDataset(path):
     removeNan(dt)
 
     enc.fit(dt)
-
-    return enc.transform(dt)
-
+    dt = enc.transform(dt)
+    return dt

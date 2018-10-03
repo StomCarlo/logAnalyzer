@@ -408,6 +408,11 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
 
 #normalLog('./access_log')
 
+def oneClassSvmTrain(path):
+    dt = utilities.loadDataset_oneHotEncoder(path)
+    clf = svm.OneClassSVM(nu=0.5, kernel="rbf", gamma=0.01)
+    clf.fit(dt)
+    return clf
 """
 file = './access_log'
 l = fileToDic(file)
@@ -449,12 +454,6 @@ d = np.array(resources[dt[0][1]]["data"])[0:10, 2:]
 print resources[dt[0][1]]["clf"].predict(d)
 
 """
-
-dt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
-clf = svm.OneClassSVM(nu=0.5, kernel="rbf", gamma=0.01)
-clf.fit(dt)
-print clf.predict(dt)[0:10]
-
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
