@@ -1,5 +1,6 @@
 from keras.preprocessing.text import hashing_trick
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import OneHotEncoder
 import pandas
 import numpy as np
 
@@ -10,6 +11,15 @@ def text2hash(df):
             #print el, df[el][0]
             df[el] = df[el].apply(
                 lambda x: hashing_trick(str(x), 200, hash_function='md5', filters='!"#$%&()*+,-./:;<=>?@[\]^`{|}~ '))
+
+
+def removeNan(df):
+    for el in df.columns:
+        df[el] = df[el].apply(
+                lambda x: -1 if pandas.isnull(x) else x)
+
+
+
 
 def isNumeric(col):
     for el in col:
@@ -41,18 +51,10 @@ def loadDataset(path):
         skipfooter=0,
         sep=',')
 
-    text2hash(dt)
-    dt = dt.values
-    dt = removeListValues(dt)
-    i=0
-    for row in dt[:,:]:
-        j=0
-        for el in row[:]:
-            if (not isinstance(el,float) or np.isnan(el)):
-                dt[i][j] = -1.0
-            j+=1
-        i +=1
-    # normalize the dataset
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    dt = scaler.fit_transform(dt[:,:])
-    return dt
+    enc = OneHotEncoder(handle_unknown='ignore')
+    removeNan(dt)
+
+    enc.fit(dt)
+
+    return enc.transform(dt)
+

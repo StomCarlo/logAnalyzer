@@ -406,7 +406,7 @@ def sessionDatasetConverter(sessions):  #this functions takes the raw sessions a
                 ])
 
 
-normalLog('./access_log')
+#normalLog('./access_log')
 
 """
 file = './access_log'
@@ -426,7 +426,7 @@ sessionDatasetConverter(sessions)
 
 """
 #normalLog('./access_log')
-dt = utilities.loadDataset('./normalaccess_log.csv')
+dt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
 resources = {}
 for con in dt:
     if con[1] in resources:
@@ -439,6 +439,7 @@ for con in dt:
 print "splitted for resource"
 
 for k in resources:
+    print "----------------------------- " + k + " ------------------"
     resources[k]["clf"].fit( np.array(resources[k]["data"])[:, 2:])
 
 print "models trained"
@@ -446,11 +447,14 @@ print "models trained"
 d = np.array(resources[dt[0][1]]["data"])[0:10, 2:]
 
 print resources[dt[0][1]]["clf"].predict(d)
+
 """
 
+dt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
+clf = svm.OneClassSVM(nu=0.5, kernel="rbf", gamma=0.01)
+clf.fit(dt)
+print clf.predict(dt)[0:10]
 
-#TODO: find the right limit for long requests
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
-#TODO: add GEOIP information
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
