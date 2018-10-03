@@ -6,11 +6,13 @@ import bencode
 import csv
 import dnsbls
 import utilities
+import pandas
 import apache_log_parser as alp
 import numpy as np
 from datetime import datetime
 from geoip import geolite2
 from sklearn import svm
+from sklearn.cluster import KMeans
 
 report = {}
 ipsCache = {}
@@ -413,6 +415,8 @@ def oneClassSvmTrain(path):
     clf = svm.OneClassSVM(nu=0.5, kernel="rbf", gamma=0.01)
     clf.fit(dt)
     return clf
+
+
 """
 file = './access_log'
 l = fileToDic(file)
@@ -454,6 +458,18 @@ d = np.array(resources[dt[0][1]]["data"])[0:10, 2:]
 print resources[dt[0][1]]["clf"].predict(d)
 
 """
+dt = utilities.loadDataset_hash('./outputs/normalaccess_log/_alimenti.csv')
+print dt.shape
+
+kmeans = KMeans(n_clusters=1, random_state=0).fit(dt)
+print kmeans.cluster_centers_
+
+dst = kmeans.transform(dt) #array of array
+dst = [item for sublist in dst.tolist() for item in sublist] #convert to list of distances
+print len(dst)
+max_dst = max(dst)
+print max_dst
+
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
