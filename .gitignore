@@ -4,3 +4,4 @@ access_log*
 sessions.json
 session*json
 outputs/*
+*.pyc

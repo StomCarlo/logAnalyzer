@@ -40,6 +40,16 @@ fingerprints = [
         'alone': 1
     },
     {
+        'fp': '.*\.php.*',
+        'attack': 'attempt to access to php executable',
+        'alone': 1
+    },
+    {
+        'fp': '.*phpmyadmin.*',
+        'attack': 'attempt to access to php executable',
+        'alone': 1
+    },
+    {
         'fp': '.*`.*`.*',
         'attack': '"`"  is often used to execute perl commands',
         'alone': 1

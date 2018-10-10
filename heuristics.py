@@ -110,35 +110,47 @@ def normalLog(logPath, splitByRes = True):
 
     if splitByRes:
         normalLog = {} #dictionary in which the keys are the resources and the values are the normal connections for that resource
+        signaledLog = {}
         for el in log:
             k = hashlib.md5(bencode.bencode(el)).hexdigest()
+            res = el["Resource"]
             if not k in report: # if the connection has not been reported by the heuristics
-                res = el["Resource"]
-                if res == '/areariservata':
-                    print el["ServerPath"]
-
                 if not res in normalLog:
                     normalLog[res] = []
                 normalLog[res].append(el.copy())
-
+            else :
+                if not res in signaledLog:
+                    signaledLog[res] = []
+                signaledLog[res].append(el.copy())
     else:
         normalLog = [] #the list of all normal connection
+        signaledLog = []
         for el in log:
             k = hashlib.md5(bencode.bencode(el)).hexdigest()
             if not k in report:
                 normalLog.append(el.copy())
+            else:
+                signaledLog.append(el.copy())
 
     i = logPath.rfind('/') + 1 if logPath.rfind('/') != -1 else 0
-    directory = './outputs/' + 'normal' + logPath[i:len(logPath)]
+    normDir = './outputs/' + 'normal' + logPath[i:len(logPath)]
+    signaledDir = './outputs/' + 'signaled' + logPath[i:len(logPath)]
 
     if splitByRes:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+        if not os.path.exists(normDir):
+            os.makedirs(normDir)
         for k in normalLog:
-            logToCsv(normalLog[k], directory + '/' + k.replace('/', '_') + '.csv', False)
+            logToCsv(normalLog[k], normDir + '/' + k.replace('/', '_') + '.csv', False)
+        
+        if not os.path.exists(signaledDir):
+            os.makedirs(signaledDir)
+        for k in signaledLog:
+            logToCsv(signaledLog[k], signaledDir + '/' + k.replace('/', '_') + '.csv', False)
 
     else:
-        logToCsv(normalLog, directory +'.csv', False)
+        logToCsv(normalLog, normDir +'.csv', False)
+        logToCsv(signaledLog, signaledDir +'.csv', False)
+
 
 def checkReqFingerprints(log):
     with open('./fingerprints/fingerprints.json') as fp:
@@ -518,6 +530,8 @@ d = np.array(resources[dt[0][1]]["data"])[0:10, 2:]
 print resources[dt[0][1]]["clf"].predict(d)
 
 """
+
+"""
 dt = utilities.loadDataset_hash('./outputs/normalaccess_log/_alimenti.csv')
 originalDt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
 print dt.shape, originalDt.shape
@@ -532,6 +546,9 @@ max_dst = max(dst)
 print max_dst
 
 plotData(dt,2,4,originalDt)
+
+"""
+normalLog('./access_log')
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem

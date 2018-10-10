@@ -35,6 +35,11 @@
         "attack": "\"<?\"  is often used to inject php commands"
     },
     {
+        "fp": ".*(\\.php|phpmyadmin).*",
+        "attack": "attempt to access to php executable",
+        "alone": 1
+    },
+    {
         "fp": ".*(`|%60).*(`|%60).*",
         "alone": 1,
         "attack": "\"`\"  is often used to execute perl commands"
