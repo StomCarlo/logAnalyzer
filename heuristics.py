@@ -40,16 +40,17 @@ def fileToDic(filePath):
             t = logData['time_received'].split()
 
             d = {
-                "RemoteHostAdress" : logData['remote_host'],
-                "RemoteLogName" : logData['remote_logname'],
-                "UserName" : logData['remote_user'],
-                "TimeStamp" : t[0][1:len(t[0])],
-                "TimeZone" : t[1],
-                "StatusCode" : logData['status'],
-                "ReturnSize" : logData['response_bytes_clf'],
-                "Referrer" : '"'+logData['request_header_referer']+'"',
-                "UserAgent" :'"'+ logData['request_header_user_agent']+'"', #if needed the ua can be splitted in its parts
-                "RequestMethod": logData["request_method"],
+                "RemoteHostAdress": '"' + logData['remote_host'] + '"',
+                "RemoteLogName": logData['remote_logname'],
+                "UserName": logData['remote_user'],
+                "TimeStamp": '"' + t[0][1:len(t[0])] + '"',
+                "TimeZone": '"' + t[1][0:-1] + '"',
+                "StatusCode": logData['status'],
+                "ReturnSize": logData['response_bytes_clf'],
+                "Referrer": '"' + logData['request_header_referer'] + '"',
+                "UserAgent": '"' + logData['request_header_user_agent'] +
+                '"',  #if needed the ua can be splitted in its parts
+                "RequestMethod": '"' + logData["request_method"] + '"',
                 "ProtocolVersion": logData["request_http_ver"],
                 "ServerPath": logData["request_url"]
             }
