@@ -13,6 +13,9 @@ from datetime import datetime
 from geoip import geolite2
 from sklearn import svm
 from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import scale
 
 report = {}
 ipsCache = {}
@@ -417,6 +420,62 @@ def oneClassSvmTrain(path):
     return clf
 
 
+def plotData(dt, n_axes, n_clust, originalDt):
+    reduced_data = PCA(n_components=n_axes).fit_transform(dt)
+    kmeans = KMeans(init='k-means++', n_clusters=n_clust)
+    kmeans.fit(reduced_data)
+
+    # Step size of the mesh. Decrease to increase the quality of the VQ.
+    h = .02  # point in the mesh [x_min, x_max]x[y_min, y_max].
+
+    # Plot the decision boundary. For that, we will assign a color to each
+    x_min, x_max = reduced_data[:, 0].min() - 1, reduced_data[:, 0].max() + 1
+    y_min, y_max = reduced_data[:, 1].min() - 1, reduced_data[:, 1].max() + 1
+    xx, yy = np.meshgrid(
+        np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+    labels = kmeans.predict(reduced_data)
+    # Obtain labels for each point in mesh. Use last trained model.
+    Z = kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
+
+    with open("./clusters.csv", 'wb') as csvfile:
+        sw = csv.writer(
+            csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        for i in range( len(labels) ):
+            sw.writerow( np.append(originalDt[i],labels[i]) )
+    # Put the result into a color plot
+    Z = Z.reshape(xx.shape)
+
+    plt.figure(1)
+    plt.clf()
+    plt.imshow(
+        Z,
+        interpolation='nearest',
+        extent=(xx.min(), xx.max(), yy.min(), yy.max()),
+        cmap=plt.cm.Paired,
+        aspect='auto',
+        origin='lower')
+
+    plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
+    # Plot the centroids as a white X
+    centroids = kmeans.cluster_centers_
+    plt.scatter(
+        centroids[:, 0],
+        centroids[:, 1],
+        marker='x',
+        s=169,
+        linewidths=3,
+        color='w',
+        zorder=10)
+    plt.title('K-means clustering on the digits dataset (PCA-reduced data)\n'
+              'Centroids are marked with white cross')
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    plt.xticks(())
+    plt.yticks(())
+    plt.show()
+
+
 """
 file = './access_log'
 l = fileToDic(file)
@@ -459,7 +518,8 @@ print resources[dt[0][1]]["clf"].predict(d)
 
 """
 dt = utilities.loadDataset_hash('./outputs/normalaccess_log/_alimenti.csv')
-print dt.shape
+originalDt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
+print dt.shape, originalDt.shape
 
 kmeans = KMeans(n_clusters=1, random_state=0).fit(dt)
 print kmeans.cluster_centers_
@@ -470,6 +530,7 @@ print len(dst)
 max_dst = max(dst)
 print max_dst
 
+plotData(dt,2,4,originalDt)
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem

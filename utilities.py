@@ -72,3 +72,15 @@ def loadDataset_hash(path):
     scaler = MinMaxScaler(feature_range=(0, 1))
     dt = scaler.fit_transform(dt[:,:])
     return dt
+
+
+def loadDataset(path):
+    dt = pandas.read_csv(
+        path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
+        engine='python',
+        skipfooter=0,
+        sep=',')
+    removeNan(dt)
+    dt = dt.values
+    dt = removeListValues(dt)
+    return dt
