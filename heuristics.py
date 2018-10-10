@@ -21,6 +21,7 @@ report = {}
 ipsCache = {}
 sessions = {}
 
+nexceeding = 0 #used for file names exceeding the maximum name length
 
 
 
@@ -51,7 +52,7 @@ def fileToDic(filePath):
                 "UserAgent": '"' + logData['request_header_user_agent'] +
                 '"',  #if needed the ua can be splitted in its parts
                 "RequestMethod": '"' + logData["request_method"] + '"',
-                "ProtocolVersion": logData["request_http_ver"],
+                "ProtocolVersion": '"' + str(logData["request_http_ver"]) + '"', 
                 "ServerPath": logData["request_url"]
             }
             if "request_url_query_simple_dict" in logData:
@@ -69,6 +70,10 @@ def fileToDic(filePath):
 
 def logToCsv(log, dst, short = True): #dst is the name of the csv
     l = log[0]
+    if len(dst) > 255:
+        global nexceeding
+        dst = dst[0:250]+str(nexceeding) + ".csv" 
+        nexceeding +=1
     with open(dst, 'wb') as csvfile:
         sw = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         k = [key for key, value in l.items() if key != 'ReqParameters']
@@ -112,25 +117,33 @@ def normalLog(logPath, splitByRes = True):
         normalLog = {} #dictionary in which the keys are the resources and the values are the normal connections for that resource
         signaledLog = {}
         for el in log:
-            k = hashlib.md5(bencode.bencode(el)).hexdigest()
-            res = el["Resource"]
-            if not k in report: # if the connection has not been reported by the heuristics
-                if not res in normalLog:
-                    normalLog[res] = []
-                normalLog[res].append(el.copy())
-            else :
-                if not res in signaledLog:
-                    signaledLog[res] = []
-                signaledLog[res].append(el.copy())
+            try:
+                k = hashlib.md5(bencode.bencode(el)).hexdigest()
+                res = el["Resource"]
+                if not k in report: # if the connection has not been reported by the heuristics
+                    if not res in normalLog:
+                        normalLog[res] = []
+                    normalLog[res].append(el.copy())
+                else :
+                    if not res in signaledLog:
+                        signaledLog[res] = []
+                    signaledLog[res].append(el.copy())
+            except:
+                print "something went wrong"
+                print el
     else:
         normalLog = [] #the list of all normal connection
         signaledLog = []
         for el in log:
-            k = hashlib.md5(bencode.bencode(el)).hexdigest()
-            if not k in report:
-                normalLog.append(el.copy())
-            else:
-                signaledLog.append(el.copy())
+            try:
+                k = hashlib.md5(bencode.bencode(el)).hexdigest()
+                if not k in report:
+                    normalLog.append(el.copy())
+                else:
+                    signaledLog.append(el.copy())
+            except:
+                print "something went wrong"
+                print el
 
     i = logPath.rfind('/') + 1 if logPath.rfind('/') != -1 else 0
     normDir = './outputs/' + 'normal' + logPath[i:len(logPath)]
@@ -141,7 +154,7 @@ def normalLog(logPath, splitByRes = True):
             os.makedirs(normDir)
         for k in normalLog:
             logToCsv(normalLog[k], normDir + '/' + k.replace('/', '_') + '.csv', False)
-        
+
         if not os.path.exists(signaledDir):
             os.makedirs(signaledDir)
         for k in signaledLog:
@@ -548,7 +561,7 @@ print max_dst
 plotData(dt,2,4,originalDt)
 
 """
-normalLog('./access_log')
+normalLog('./logs/all_access_log')
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
