@@ -3,3 +3,4 @@ access_log*
 *.csv
 sessions.json
 session*json
+outputs/*
