@@ -1,2 +1,5 @@
 access_log*
 *_log*
+*.csv
+sessions.json
+session*json
