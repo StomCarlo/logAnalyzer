@@ -16,7 +16,7 @@ from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import scale
-
+from statsmodels import robust
 report = {}
 ipsCache = {}
 sessions = {}
@@ -52,8 +52,8 @@ def fileToDic(filePath):
                 "UserAgent": '"' + logData['request_header_user_agent'] +
                 '"',  #if needed the ua can be splitted in its parts
                 "RequestMethod": '"' + logData["request_method"] + '"',
-                "ProtocolVersion": '"' + str(logData["request_http_ver"]) + '"', 
-                "ServerPath": logData["request_url"]
+                "ProtocolVersion": '"' + str(logData["request_http_ver"]) + '"',
+                "ServerPath": '"' + logData["request_url"] + '"'
             }
             if "request_url_query_simple_dict" in logData:
                 d["ReqParameters"] = logData["request_url_query_simple_dict"]
@@ -72,7 +72,7 @@ def logToCsv(log, dst, short = True): #dst is the name of the csv
     l = log[0]
     if len(dst) > 255:
         global nexceeding
-        dst = dst[0:250]+str(nexceeding) + ".csv" 
+        dst = dst[0:250]+str(nexceeding) + ".csv"
         nexceeding +=1
     with open(dst, 'wb') as csvfile:
         sw = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -463,12 +463,14 @@ def plotData(dt, n_axes, n_clust, originalDt):
     # Obtain labels for each point in mesh. Use last trained model.
     Z = kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
 
-    with open("./clusters.csv", 'wb') as csvfile:
-        sw = csv.writer(
-            csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-        for i in range( len(labels) ):
-            sw.writerow( np.append(originalDt[i],labels[i]) )
+    #with open("./clusters.csv", 'wb') as csvfile:
+    #    sw = csv.writer(
+    #        csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+    #    for i in range( len(labels) ):
+    #        sw.writerow( np.append(originalDt[i],labels[i]) )
+
     # Put the result into a color plot
     Z = Z.reshape(xx.shape)
 
@@ -481,20 +483,46 @@ def plotData(dt, n_axes, n_clust, originalDt):
         cmap=plt.cm.Paired,
         aspect='auto',
         origin='lower')
-
     plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
     # Plot the centroids as a white X
     centroids = kmeans.cluster_centers_
+    print centroids
+
     plt.scatter(
-        centroids[:, 0],
-        centroids[:, 1],
+        centroids[0, 0],
+        centroids[0, 1],
         marker='x',
         s=169,
         linewidths=3,
         color='w',
         zorder=10)
+    plt.scatter(
+        centroids[1, 0],
+        centroids[1, 1],
+        marker='x',
+        s=169,
+        linewidths=3,
+        color='r',
+        zorder=10)
+    plt.scatter(
+        centroids[2, 0],
+        centroids[2, 1],
+        marker='x',
+        s=169,
+        linewidths=3,
+        color='g',
+        zorder=10)
+    plt.scatter(
+        centroids[3, 0],
+        centroids[3, 1],
+        marker='x',
+        s=169,
+        linewidths=3,
+        color='b',
+        zorder=10)
     plt.title('K-means clustering on the digits dataset (PCA-reduced data)\n'
               'Centroids are marked with white cross')
+    plt.legend()
     plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
     plt.xticks(())
@@ -543,25 +571,43 @@ d = np.array(resources[dt[0][1]]["data"])[0:10, 2:]
 print resources[dt[0][1]]["clf"].predict(d)
 
 """
+#normalLog('./logs/all_access_log')
 
-"""
-dt = utilities.loadDataset_hash('./outputs/normalaccess_log/_alimenti.csv')
-originalDt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
-print dt.shape, originalDt.shape
+dt = utilities.loadDataset_hash('./outputs/normalall_access_log/_alimenti.csv')
+#originalDt = utilities.loadDataset('./outputs/normalall_access_log/_alimenti.csv')
+#print dt.shape, originalDt.shape
 
-kmeans = KMeans(n_clusters=1, random_state=0).fit(dt)
+kmeans = KMeans(n_clusters=4, random_state=0).fit(dt)
 print kmeans.cluster_centers_
-
+labels = kmeans.labels_
+print len(labels)
 dst = kmeans.transform(dt) #array of array
-dst = [item for sublist in dst.tolist() for item in sublist] #convert to list of distances
-print len(dst)
-max_dst = max(dst)
+print "dst"
+print dst[0]
+"""
+dst1 = [item for sublist in dst.tolist() for item in sublist] #convert to list of distances
+print len(dst1)
+max_dst = max(dst1)
 print max_dst
+"""
+
+dist_to_cluster = {}
+for i in range(len(labels)):
+    l = labels[i]
+    if not l in dist_to_cluster:
+        dist_to_cluster[l] = []
+    dist_to_cluster[l].append( dst[i][l] )
+
+
+for k in dist_to_cluster:
+    avg = reduce(lambda x, y: x + y, dist_to_cluster[k]) / len(
+        dist_to_cluster[k])
+    print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
+        dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
 
 plotData(dt,2,4,originalDt)
 
-"""
-normalLog('./logs/all_access_log')
+
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
