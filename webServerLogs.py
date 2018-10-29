@@ -70,9 +70,11 @@ def fileToDic(filePath):
 
 
 def logToCsv(
-        log, dst, short=True
+    log, dst, complete, short=True
 ):  #dst is the name of the csv, set short to True if you don't want the parameters as features
     l = log[0]
+    if complete is None:
+        complete = log
     if len(dst) > 255:
         global nexceeding
         dst = dst[0:250]+str(nexceeding) + ".csv"
@@ -84,7 +86,7 @@ def logToCsv(
         k.append("nParameters")
         param = set() #it will be the list of all the parameters
         if not short:
-            for l in log:
+            for l in complete:
                 for key in l["ReqParameters"].keys():
                     param.add('"' + key + '"')
             param = list(param)
@@ -123,7 +125,9 @@ def normalLog(logPath, splitByRes = True, short = False): #set short to True if 
             try:
                 k = hashlib.md5(bencode.bencode(el)).hexdigest()
                 res = el["Resource"]
-                if not k in report: # if the connection has not been reported by the heuristics
+                if not k in report or (
+                        report[k]["aloneAlerts"] == 0
+                        and report[k]["otherAlerts"] <= 1 ):  # if the connection has not been reported by the heuristics
                     if not res in normalLog:
                         normalLog[res] = []
                     normalLog[res].append(el.copy())
@@ -155,17 +159,29 @@ def normalLog(logPath, splitByRes = True, short = False): #set short to True if 
     if splitByRes:
         if not os.path.exists(normDir):
             os.makedirs(normDir)
+
+        complete = None
+
         for k in normalLog:
-            logToCsv(normalLog[k], normDir + '/' + k.replace('/', '_') + '.csv', short)
+            if k in normalLog and k in signaledLog:
+                complete = np.concatenate((normalLog[k], signaledLog[k]), axis=0)
+            else:
+                complete = None
+            logToCsv(normalLog[k], normDir + '/' + k.replace('/', '_') + '.csv', complete, short)
 
         if not os.path.exists(signaledDir):
             os.makedirs(signaledDir)
         for k in signaledLog:
-            logToCsv(signaledLog[k], signaledDir + '/' + k.replace('/', '_') + '.csv', short)
-
+            if k in normalLog and k in signaledLog:
+                complete = np.concatenate(
+                    (normalLog[k], signaledLog[k]), axis=0)
+            else:
+                complete = None
+            logToCsv(signaledLog[k], signaledDir + '/' + k.replace('/', '_') + '.csv', complete, short)
+        print "ONE DONE"
     else:
-        logToCsv(normalLog, normDir +'.csv', short)
-        logToCsv(signaledLog, signaledDir +'.csv', short)
+        logToCsv(normalLog, normDir +'.csv', log, short)
+        logToCsv(signaledLog, signaledDir +'.csv', log, short)
 
 
 
@@ -348,7 +364,6 @@ def sessionDatasetConverter(sessions, file):  #this functions takes the raw sess
                 ])
 
 
-#normalLog('./access_log')
 
 def oneClassSvmTrain(path):
     dt = utilities.loadDataset_oneHotEncoder(path)
@@ -357,8 +372,10 @@ def oneClassSvmTrain(path):
     return clf
 
 
-def plotData(dt, n_axes, n_clust, originalDt):
+def plotData(dt, n_axes, n_clust, originalDt, attackDt = None):
     reduced_data = PCA(n_components=n_axes).fit_transform(dt)
+    if attackDt is not None:
+        reduced_data_attack = PCA(n_components=n_axes).fit_transform(attackDt)
     kmeans = KMeans(init='k-means++', n_clusters=n_clust)
     kmeans.fit(reduced_data)
 
@@ -375,37 +392,37 @@ def plotData(dt, n_axes, n_clust, originalDt):
     Z = kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
 
     #TODO make this code a separate function whith takes the number of clusters
-    with open("./cluster0.csv", 'wb') as csvfile0:
-        sw0 = csv.writer(
-            csvfile0, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        with open("./cluster1.csv", 'wb') as csvfile1:
-            sw1 = csv.writer(
-                csvfile1, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            with open("./cluster2.csv", 'wb') as csvfile2:
-                sw2 = csv.writer(
-                    csvfile2, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                with open("./cluster3.csv", 'wb') as csvfile3:
-                    sw3 = csv.writer(
-                        csvfile3, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                    #change the headers if you change the file
-                    sw0.writerow(
-                        ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
-                    sw1.writerow(
-                        ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
-                    sw2.writerow(
-                        ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
-                    sw3.writerow(
-                        ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
+    # with open("./cluster0.csv", 'wb') as csvfile0:
+    #     sw0 = csv.writer(
+    #         csvfile0, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #     with open("./cluster1.csv", 'wb') as csvfile1:
+    #         sw1 = csv.writer(
+    #             csvfile1, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #         with open("./cluster2.csv", 'wb') as csvfile2:
+    #             sw2 = csv.writer(
+    #                 csvfile2, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #             with open("./cluster3.csv", 'wb') as csvfile3:
+    #                 sw3 = csv.writer(
+    #                     csvfile3, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #                 #change the headers if you change the file
+    #                 sw0.writerow(
+    #                     ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
+    #                 sw1.writerow(
+    #                     ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
+    #                 sw2.writerow(
+    #                     ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
+    #                 sw3.writerow(
+    #                     ['Resource','TimeStamp','ReturnSize','Referrer','RemoteHostAdress','RequestMethod','UserAgent','ProtocolVersion','ServerPath','StatusCode','requestLength','nParameters','"cat"','"rg"','"p_p_col_id"','"gruppo"','"macro"','"p_p_auth"','"p_p_id"','"order"','"_49_struts_action"','"p_p_mode"','"page"','"p_p_col_count"','"p_p_col_pos"','"_49_groupId"','"tab"','"_49_privateLayout"','"p_p_state"','"max"','"vista"','"dn"','"p_p_lifecycle"'])
 
-                    for i in range( len(labels) ):
-                        sw = sw0
-                        if labels[i] == 1:
-                            sw = sw1
-                        elif labels[i] == 2:
-                            sw = sw2
-                        elif labels[i] == 3:
-                            sw = sw3
-                        sw.writerow( np.append(originalDt[i],labels[i]) )
+    #                 for i in range( len(labels) ):
+    #                     sw = sw0
+    #                     if labels[i] == 1:
+    #                         sw = sw1
+    #                     elif labels[i] == 2:
+    #                         sw = sw2
+    #                     elif labels[i] == 3:
+    #                         sw = sw3
+    #                     sw.writerow( np.append(originalDt[i],labels[i]) )
 
     #put the result into a color plotnan
     Z = Z.reshape(xx.shape)
@@ -420,6 +437,8 @@ def plotData(dt, n_axes, n_clust, originalDt):
         aspect='auto',
         origin='lower')
     plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
+    if attackDt is not None:
+        plt.plot(reduced_data_attack[:, 0], reduced_data_attack[:, 1], 'w.', markersize=2 )
     # Plot the centroids as a white X
     centroids = kmeans.cluster_centers_
     print centroids
@@ -463,8 +482,64 @@ def plotData(dt, n_axes, n_clust, originalDt):
     plt.xticks(())
     plt.yticks(())
     plt.show()
+    return plt
 
+def dbscab(dt, n_axes):
+    from sklearn.cluster import DBSCAN
+    from sklearn import metrics
+    from sklearn.preprocessing import StandardScaler
+    # #############################################################################
+    # Generate sample data
 
+    X = PCA(n_components=n_axes).fit_transform(dt)
+    print X[0]
+    # #############################################################################
+    # Compute DBSCAN
+    db = DBSCAN(eps=0.3, min_samples=10).fit(X)
+    core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+    core_samples_mask[db.core_sample_indices_] = True
+    labels = db.labels_
+
+    # Number of clusters in labels, ignoring noise if present.
+    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+
+    print('Estimated number of clusters: %d' % n_clusters_)
+
+    # print("Homogeneity: %0.3f" % metrics.homogeneity_score(labels_true, labels))
+    # print("Completeness: %0.3f" % metrics.completeness_score(labels_true, labels))
+    # print("V-measure: %0.3f" % metrics.v_measure_score(labels_true, labels))
+    # print("Adjusted Rand Index: %0.3f"
+    #     % metrics.adjusted_rand_score(labels_true, labels))
+    # print("Adjusted Mutual Information: %0.3f"
+    #     % metrics.adjusted_mutual_info_score(labels_true, labels))
+    # print("Silhouette Coefficient: %0.3f"
+    #     % metrics.silhouette_score(X, labels))
+
+    # #############################################################################
+    # Plot result
+    import matplotlib.pyplot as plt
+
+    # Black removed and is used for noise instead.
+    unique_labels = set(labels)
+    colors = [plt.cm.Spectral(each)
+            for each in np.linspace(0, 1, len(unique_labels))]
+    for k, col in zip(unique_labels, colors):
+        if k == -1:
+            # Black used for noise.
+            col = [0, 0, 0, 1]
+
+        class_member_mask = (labels == k)
+
+        xy = X[class_member_mask & core_samples_mask]
+        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
+                markeredgecolor='k', markersize=14)
+
+        xy = X[class_member_mask & ~core_samples_mask]
+        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
+                markeredgecolor='k', markersize=6)
+
+    plt.title('Estimated number of clusters: %d' % n_clusters_)
+    plt.show()
 """
 file = './access_log'
 l = fileToDic(file)
@@ -474,13 +549,13 @@ heuristics.checkStatusCode(l)
 print( "...........................................................")
 print( report)
 """
-
+"""
 file = './logs/merged_anon_access_log'
 l = fileToDic(file)
 sessions=sessionConverter(l)
 sessionDatasetConverter(sessions,file)
 
-
+"""
 """
 #normalLog('./access_log')
 dt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
@@ -508,32 +583,36 @@ print resources[dt[0][1]]["clf"].predict(d)
 """
 #normalLog('./logs/merged_anon_access_log')
 
-"""dt = utilities.loadDataset_hash('./outputs/normalall_access_log/_alimenti.csv')
-originalDt = utilities.loadDataset('./outputs/normalall_access_log/_alimenti.csv')
+
+dt = utilities.loadDataset_hash('./outputs/normalmerged_anon_access_log/_alimenti.csv')
+#originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
+attackDt = utilities.loadDataset_hash('./outputs/signaledmerged_anon_access_log/_alimenti.csv')
 #print dt.shape, originalDt.shape
 
-kmeans = KMeans(n_clusters=4, random_state=0).fit(dt)
-labels = kmeans.labels_
-dst = kmeans.transform(dt) #array of array
-print "dst"
-print dst[0]
+# kmeans = KMeans(n_clusters=4, random_state=0).fit(dt)
+# labels = kmeans.labels_
+# dst = kmeans.transform(dt) #array of array
+# print "dst"
+# print dst[0]
 
-dist_to_cluster = {}
-for i in range(len(labels)):
-    l = labels[i]
-    if not l in dist_to_cluster:
-        dist_to_cluster[l] = []
-    dist_to_cluster[l].append( dst[i][l] )
+# dist_to_cluster = {}
+# for i in range(len(labels)):
+#     l = labels[i]
+#     if not l in dist_to_cluster:
+#         dist_to_cluster[l] = []
+#     dist_to_cluster[l].append( dst[i][l] )
 
 
-for k in dist_to_cluster:
-    avg = reduce(lambda x, y: x + y, dist_to_cluster[k]) / len(
-        dist_to_cluster[k])
-    print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
-        dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
+# for k in dist_to_cluster:
+#     avg = reduce(lambda x, y: x + y, dist_to_cluster[k]) / len(
+#         dist_to_cluster[k])
+#     print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
+#         dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
 
-#plotData(dt,2,4,originalDt)
-"""
+#alldt = np.concatenate((dt, attackDt), axis=0)
+#plotData(alldt,2,4,"originalDt", None)
+dbscab(dt,2)
+
 
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: convert all the fingerpring also in HEX
