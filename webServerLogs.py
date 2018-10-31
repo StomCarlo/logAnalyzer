@@ -17,6 +17,7 @@ from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import scale
+from sklearn.externals import joblib
 from statsmodels import robust
 ipsCache = {}
 sessions = {}
@@ -372,10 +373,18 @@ def oneClassSvmTrain(path):
     return clf
 
 
-def plotData(dt, n_axes, n_clust, originalDt, attackDt = None):
-    reduced_data = PCA(n_components=n_axes).fit_transform(dt)
+def plotData(dt, n_axes, n_clust, originalDt, attackDt = None, oneClass= False):
     if attackDt is not None:
-        reduced_data_attack = PCA(n_components=n_axes).fit_transform(attackDt)
+        alldt = np.concatenate((dt, attackDt), axis=0)
+        limit = len(dt)
+
+        reduced_all = PCA(n_components=n_axes).fit_transform(alldt)
+        reduced_data = reduced_all[0:limit, :]
+        reduced_data_attack = reduced_all[limit:, :]
+    else :
+        reduced_data = PCA(n_components=n_axes).fit_transform(dt)
+    # if attackDt is not None:
+    #     reduced_data_attack = PCA(n_components=n_axes).fit_transform(attackDt)
     kmeans = KMeans(init='k-means++', n_clusters=n_clust)
     kmeans.fit(reduced_data)
 
@@ -387,7 +396,43 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None):
     y_min, y_max = reduced_data[:, 1].min() - 1, reduced_data[:, 1].max() + 1
     xx, yy = np.meshgrid(
         np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+
     labels = kmeans.predict(reduced_data)
+
+    d = {}  #data
+    c = {}  #classifiers
+    resNorm={} #marked normal by clf
+    resOut={} #marked outlier by clf
+    #things related to 1 class svm
+    if oneClass:
+
+        for i in range(n_clust):
+            d[i] = []
+            c[i] = svm.OneClassSVM(nu=0.01, kernel="rbf", gamma='auto')
+            resNorm[i] = []
+            resOut[i] = []
+
+        for i in range(len(reduced_data)): #split data basing on cluster label
+            d[ labels[i] ].append(reduced_data[i])
+        print "data splitted"
+        for k in d:
+            print k
+            print len(d[k])
+        for k in c: #train the 1classSVM
+            print k
+            print len(d[k])
+            c[k].fit(d[k]) #c[k].fit( np.array(d[k])[0:2000,:] )
+            res = c[k].predict(d[k])
+            print "prediction "+ str(k) + " done"
+            for i in range(len(res)):
+                if res[i] == 1:
+                    resNorm[k].append(d[k][i])
+                else:
+                    resOut[k].append(d[k][i])
+            print "res "+ str(k) + " splitted"
+
+
+
     # Obtain labels for each point in mesh. Use last trained model.
     Z = kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
 
@@ -436,9 +481,15 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None):
         cmap=plt.cm.Paired,
         aspect='auto',
         origin='lower')
-    plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
-    if attackDt is not None:
-        plt.plot(reduced_data_attack[:, 0], reduced_data_attack[:, 1], 'w.', markersize=2 )
+    if oneClass:
+        for k in resNorm:
+            print k, "norm " + str(len(resNorm[k])), "out " + str(len(resOut[k]))
+            plt.plot(np.array(resNorm[k])[:, 0], np.array(resNorm[k])[:, 1], 'k.', markersize=2)
+            plt.plot(np.array(resOut[k])[:, 0], np.array(resOut[k])[:, 1], 'w.', markersize=2)
+    else:
+        plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
+        if attackDt is not None:
+            plt.plot(reduced_data_attack[:, 0], reduced_data_attack[:, 1], 'w.', markersize=2 )
     # Plot the centroids as a white X
     centroids = kmeans.cluster_centers_
     print centroids
@@ -484,71 +535,56 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None):
     plt.show()
     return plt
 
-def dbscab(dt, n_axes):
-    from sklearn.cluster import DBSCAN
-    from sklearn import metrics
-    from sklearn.preprocessing import StandardScaler
-    # #############################################################################
-    # Generate sample data
+def outlier1CSVMTrain(dt, n_clust):
+    kmeans = KMeans(init='k-means++', n_clusters=n_clust)
 
-    X = PCA(n_components=n_axes).fit_transform(dt)
-    print X[0]
-    # #############################################################################
-    # Compute DBSCAN
-    db = DBSCAN(eps=0.3, min_samples=10).fit(X)
-    core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
-    core_samples_mask[db.core_sample_indices_] = True
-    labels = db.labels_
+    kmeans.fit(dt)
+    labels = kmeans.predict(dt)
 
-    # Number of clusters in labels, ignoring noise if present.
-    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+    res = {}
+    res["kmean"] = kmeans
+    for i in range(n_clust):
+        res[i] = {}
+        res[i]["data"] = [] #data assigned to cluster i
+        res[i]["clf"] = svm.OneClassSVM(nu=0.01, kernel="rbf", gamma='auto') #1class svm for cluster i
+        res[i]["trainNormIndices"] = [] #indices of items marked as actually belonging to cluster i
+        res[i]["trainOutIndices"] = [] #indices of items marked as outlier for the cluster i
 
-    print('Estimated number of clusters: %d' % n_clusters_)
 
-    # print("Homogeneity: %0.3f" % metrics.homogeneity_score(labels_true, labels))
-    # print("Completeness: %0.3f" % metrics.completeness_score(labels_true, labels))
-    # print("V-measure: %0.3f" % metrics.v_measure_score(labels_true, labels))
-    # print("Adjusted Rand Index: %0.3f"
-    #     % metrics.adjusted_rand_score(labels_true, labels))
-    # print("Adjusted Mutual Information: %0.3f"
-    #     % metrics.adjusted_mutual_info_score(labels_true, labels))
-    # print("Silhouette Coefficient: %0.3f"
-    #     % metrics.silhouette_score(X, labels))
+    for i in range( len(dt) ):  #split data basing on cluster label
+        res[ labels[i] ]["data"].append(dt[i])
+    print "data splitted"
 
-    # #############################################################################
-    # Plot result
-    import matplotlib.pyplot as plt
+    for k in range(n_clust):
+        print k
+        print len(res[k]["data"])
 
-    # Black removed and is used for noise instead.
-    unique_labels = set(labels)
-    colors = [plt.cm.Spectral(each)
-            for each in np.linspace(0, 1, len(unique_labels))]
-    for k, col in zip(unique_labels, colors):
-        if k == -1:
-            # Black used for noise.
-            col = [0, 0, 0, 1]
+    for k in range(n_clust):  #train the 1classSVM
+        predictions = res[k]["clf"].fit_predict(res[k]["data"])  #c[k].fit( np.array(d[k])[0:2000,:] )
+        print "prediction " + str(k) + " done"
+        for i in range(len(predictions)):
+            if predictions[i] == 1:
+                res[k]["trainNormIndices"].append(i)
+            else:
+                res[k]["trainOutIndices"].append(i)
+    return res
 
-        class_member_mask = (labels == k)
+def outlierDistanceBased(dt, n_clust, th):
+    kmeans = KMeans(init='k-means++', n_clusters=n_clust)
 
-        xy = X[class_member_mask & core_samples_mask]
-        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
-                markeredgecolor='k', markersize=14)
+    dist = kmeans.fit_transform(dt)
+    print dist[0]
+    labels = kmeans.predict(dt)
+    outliersIndices= []
+    
+    for i in range(len(dt)):
+        if dist[i][labels[i]] > th:
+            outliersIndices.append(i)
 
-        xy = X[class_member_mask & ~core_samples_mask]
-        plt.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=tuple(col),
-                markeredgecolor='k', markersize=6)
 
-    plt.title('Estimated number of clusters: %d' % n_clusters_)
-    plt.show()
-"""
-file = './access_log'
-l = fileToDic(file)
-heuristics.checkReqFingerprints(l)
-heuristics.checkRefAndUserAgentFingerprints(l)
-heuristics.checkStatusCode(l)
-print( "...........................................................")
-print( report)
-"""
+    return outliersIndices
+
+
 """
 file = './logs/merged_anon_access_log'
 l = fileToDic(file)
@@ -584,11 +620,6 @@ print resources[dt[0][1]]["clf"].predict(d)
 #normalLog('./logs/merged_anon_access_log')
 
 
-dt = utilities.loadDataset_hash('./outputs/normalmerged_anon_access_log/_alimenti.csv')
-#originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
-attackDt = utilities.loadDataset_hash('./outputs/signaledmerged_anon_access_log/_alimenti.csv')
-#print dt.shape, originalDt.shape
-
 # kmeans = KMeans(n_clusters=4, random_state=0).fit(dt)
 # labels = kmeans.labels_
 # dst = kmeans.transform(dt) #array of array
@@ -609,11 +640,44 @@ attackDt = utilities.loadDataset_hash('./outputs/signaledmerged_anon_access_log/
 #     print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
 #         dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
 
+dt = utilities.loadDataset_hash(
+    './outputs/normalmerged_anon_access_log/_alimenti.csv')
+originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
+attackDt = utilities.loadDataset_hash(
+    './outputs/signaledmerged_anon_access_log/_alimenti.csv')
+#print dt.shape, originalDt.shape
 #alldt = np.concatenate((dt, attackDt), axis=0)
-#plotData(alldt,2,4,"originalDt", None)
-dbscab(dt,2)
+#plotData(dt,2,4,"normal", None, oneClass=True)
 
+n_clust = 4
+res = outlier1CSVMTrain(dt,4)
+km = res["kmean"]
+for i in range(n_clust):
+    print "cluster " + str(i) + ": " + str(len(res[i]["trainNormIndices"])) + " normals, " + str(len(res[i]["trainOutIndices"])) + " outliers"
 
+#save model
+joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
+for k in range(n_clust):
+    joblib.dump(res[k]["clf"], './models/oneCsvm_1_001.joblib')
+
+attackClusters = km.predict(attackDt)
+outliersCount = 0
+for i in range(len(attackDt)):
+    k = attackClusters[i]
+    r = res[k]["clf"].predict(attackDt[i].reshape(1,-1))
+    if r == -1:
+        outliersCount += 1
+
+print "found " + str(outliersCount) + " ouliers over " + str(len(attackDt)) + " connections "
+print str( (outliersCount/len(attackDt))*100) + "%"
+
+for i in range(n_clust):
+    name = "outliers"+str(i)+".csv"
+    outliers = [originalDt[j] for j in res[i]["trainOutIndices"]]
+    with open(name, 'wb') as csvfile:
+        sw = csv.writer(
+            csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        for con in outliers:
+            sw.writerow(con)
 #TODO: find a better way to catch "cat" because it appears in a lot a words
-#TODO: convert all the fingerpring also in HEX
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
