@@ -567,6 +567,10 @@ def outlier1CSVMTrain(dt, n_clust):
                 res[k]["trainNormIndices"].append(i)
             else:
                 res[k]["trainOutIndices"].append(i)
+
+    for k in range(n_clust):
+        print k
+        print len(res[k]["trainOutIndices"]), len(res[k]["data"])
     return res
 
 def outlierDistanceBased(dt, n_clust, th):
@@ -576,16 +580,17 @@ def outlierDistanceBased(dt, n_clust, th):
     print dist[0]
     labels = kmeans.predict(dt)
     outliersIndices= []
+    for i in range(n_clust):
+        outliersIndices.append([])
     
     for i in range(len(dt)):
         if dist[i][labels[i]] > th:
-            outliersIndices.append(i)
+            outliersIndices[labels[i]].append(i) #append the index to the list related to his cluster
+
+    return outliersIndices, kmeans
 
 
-    return outliersIndices
-
-
-"""
+""" #session generation
 file = './logs/merged_anon_access_log'
 l = fileToDic(file)
 sessions=sessionConverter(l)
@@ -617,8 +622,9 @@ d = np.array(resources[dt[0][1]]["data"])[0:10, 2:]
 print resources[dt[0][1]]["clf"].predict(d)
 
 """
-#normalLog('./logs/merged_anon_access_log')
-
+#kmean over all access log, calculate min, man and avg dists
+normalLog('./logs/merged_anon_access_log', splitByRes=False)
+print "normalLogDone"
 
 # kmeans = KMeans(n_clusters=4, random_state=0).fit(dt)
 # labels = kmeans.labels_
@@ -640,44 +646,62 @@ print resources[dt[0][1]]["clf"].predict(d)
 #     print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
 #         dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
 
-dt = utilities.loadDataset_hash(
-    './outputs/normalmerged_anon_access_log/_alimenti.csv')
-originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
-attackDt = utilities.loadDataset_hash(
-    './outputs/signaledmerged_anon_access_log/_alimenti.csv')
-#print dt.shape, originalDt.shape
+dt = utilities.loadDataset_hash( '~/Documenti/Progetti/tesi/log/outputs/web_server_datasets/singleConnections/normal.csv') 
+#'./outputs/normalmerged_anon_access_log/_alimenti.csv')
+#originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
+attackDt = utilities.loadDataset_hash('~/Documenti/Progetti/tesi/log/outputs/web_server_datasets/singleConnections/signaled.csv')
+    #'./outputs/signaledmerged_anon_access_log/_alimenti.csv')
+print dt.shape, attackDt.shape
 #alldt = np.concatenate((dt, attackDt), axis=0)
-#plotData(dt,2,4,"normal", None, oneClass=True)
+plotData(dt,2,4,"normal", attackDt, oneClass=False)
 
-n_clust = 4
-res = outlier1CSVMTrain(dt,4)
-km = res["kmean"]
-for i in range(n_clust):
-    print "cluster " + str(i) + ": " + str(len(res[i]["trainNormIndices"])) + " normals, " + str(len(res[i]["trainOutIndices"])) + " outliers"
+# --------- outlier distance based
+# th = 1.0
 
-#save model
-joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
-for k in range(n_clust):
-    joblib.dump(res[k]["clf"], './models/oneCsvm_1_001.joblib')
+# res, kmean = outlierDistanceBased(dt, 4 , th)
+# for i in range(4):
+#     print i, len(res[i])
 
-attackClusters = km.predict(attackDt)
-outliersCount = 0
-for i in range(len(attackDt)):
-    k = attackClusters[i]
-    r = res[k]["clf"].predict(attackDt[i].reshape(1,-1))
-    if r == -1:
-        outliersCount += 1
+# dist = kmean.transform(attackDt)
+# labels = kmean.predict(attackDt)
+# count = 0
+# for i in range(len(attackDt)):
+#     if dist[i][labels[i]] > th :
+#         count +=1
+# print "found " + str(count) + " ouliers over " + str(len(attackDt)) + " connections "
+# print str( (count/len(attackDt))*100) + "%" 
 
-print "found " + str(outliersCount) + " ouliers over " + str(len(attackDt)) + " connections "
-print str( (outliersCount/len(attackDt))*100) + "%"
+#-------------outlier 1class svm
 
-for i in range(n_clust):
-    name = "outliers"+str(i)+".csv"
-    outliers = [originalDt[j] for j in res[i]["trainOutIndices"]]
-    with open(name, 'wb') as csvfile:
-        sw = csv.writer(
-            csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for con in outliers:
-            sw.writerow(con)
+# n_clust = 4
+# res = outlier1CSVMTrain(dt,4)
+# km = res["kmean"]
+# for i in range(n_clust):
+#     print "cluster " + str(i) + ": " + str(len(res[i]["trainNormIndices"])) + " normals, " + str(len(res[i]["trainOutIndices"])) + " outliers"
+
+# #save model
+# joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
+# for k in range(n_clust):
+#     joblib.dump(res[k]["clf"], './models/oneCsvm_'+k+'_001.joblib')
+
+# attackClusters = km.predict(attackDt)
+# outliersCount = 0
+# for i in range(len(attackDt)):
+#     k = attackClusters[i]
+#     r = res[k]["clf"].predict(attackDt[i].reshape(1,-1))
+#     if r == -1:
+#         outliersCount += 1
+
+# print "found " + str(outliersCount) + " ouliers over " + str(len(attackDt)) + " connections "
+# print str( (outliersCount/len(attackDt))*100) + "%"
+
+# for i in range(n_clust):
+#     name = "outliers"+str(i)+".csv"
+#     outliers = [originalDt[j] for j in res[i]["trainOutIndices"]]
+#     with open(name, 'wb') as csvfile:
+#         sw = csv.writer(
+#             csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+#         for con in outliers:
+#             sw.writerow(con)
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
