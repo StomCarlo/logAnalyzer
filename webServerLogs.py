@@ -7,7 +7,7 @@ import csv
 import dnsbls
 import utilities
 import heuristics
-import pandas
+import random
 import apache_log_parser as alp
 import numpy as np
 from datetime import datetime
@@ -94,11 +94,13 @@ def logToCsv(
             k = k + param
         sw.writerow(k)
         for l in log:
+            l["ReturnSize"] = 0 if l["ReturnSize"] == '-' else float(
+                l["ReturnSize"])  #converting the return size to float
             k = [
                 value for key, value in l.items()
                 if key != 'ReqParameters'
             ]
-            k[1] = 0 if k[1] == '-' else float(k[1]) #converting the return size to float
+            #k[1] = 0 if k[1] == '-' else float(k[1]) #converting the return size to float
             k.append(len(l["ServerPath"]))
             k.append(len(l["ReqParameters"]))
             if not short:
@@ -381,19 +383,21 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None, oneClass= False):
         reduced_all = PCA(n_components=n_axes).fit_transform(alldt)
         reduced_data = reduced_all[0:limit, :]
         reduced_data_attack = reduced_all[limit:, :]
+        print len(reduced_data)
+        print len(reduced_data_attack)
     else :
         reduced_data = PCA(n_components=n_axes).fit_transform(dt)
     # if attackDt is not None:
     #     reduced_data_attack = PCA(n_components=n_axes).fit_transform(attackDt)
     kmeans = KMeans(init='k-means++', n_clusters=n_clust)
-    kmeans.fit(reduced_data)
+    kmeans.fit(reduced_all) #if you want to train with the normal change to reduced_data
 
     # Step size of the mesh. Decrease to increase the quality of the VQ.
     h = .02  # point in the mesh [x_min, x_max]x[y_min, y_max].
 
     # Plot the decision boundary. For that, we will assign a color to each
-    x_min, x_max = reduced_data[:, 0].min() - 1, reduced_data[:, 0].max() + 1
-    y_min, y_max = reduced_data[:, 1].min() - 1, reduced_data[:, 1].max() + 1
+    x_min, x_max = reduced_all[:, 0].min() - 1, reduced_all[:, 0].max() + 1
+    y_min, y_max = reduced_all[:, 1].min() - 1, reduced_all[:, 1].max() + 1
     xx, yy = np.meshgrid(
         np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
 
@@ -582,13 +586,78 @@ def outlierDistanceBased(dt, n_clust, th):
     outliersIndices= []
     for i in range(n_clust):
         outliersIndices.append([])
-    
+        print i, np.count_nonzero(labels == i)
     for i in range(len(dt)):
         if dist[i][labels[i]] > th:
             outliersIndices[labels[i]].append(i) #append the index to the list related to his cluster
 
+
     return outliersIndices, kmeans
 
+def subsetGenerator(path, percentage):
+    dt = fileToDic(path)
+    res = {}
+    print dt[0]
+    for el in dt:
+        r = el["Resource"]
+        if not  r in res:
+            res[r] = []
+        res[r].append(el)
+    output = []
+    n_alimenti = 0
+    outliers = []
+    for k in res: #k is a resource
+        n = (len(res[k])*percentage) / 100 #number of connection the we can take from this resource
+        if k == '/alimenti':
+            n_alimenti = n
+            print 'alimenti'
+            path1 = '/home/carlo/Documenti/Progetti/tesi/log/kmeanRes/all_alimenti/distance_1.0/'
+            path2 = '/home/carlo/Documenti/Progetti/tesi/log/kmeanRes/all_alimenti/1CLASS_001/'
+            for j in range(4):
+                cluster = 'outliers' + str(j) + '.csv'
+                p1 = path1 + cluster
+                p2 = path2 + cluster
+                d1 = utilities.loadDataset(p1)
+                d2 = utilities.loadDataset(p2)
+                if outliers == []:
+                    outliers = d1[:,:]
+                else:
+                    outliers = np.concatenate((outliers, d1), axis=0)
+                outliers = np.concatenate((outliers, d2), axis=0)
+
+            if len(outliers > n/2):
+                # random.shuffle(outliers)
+                # if output == []:
+                #     output=outliers[0:n/2, 0:12]
+                # else:
+                #     output = np.concatenate(( output, outliers[0:n/2, 0:12]), axis=0)
+                n = n/2
+            else:
+                # if output == []:
+                #     output = outliers[:,0:12]
+                # else:
+                #     output = np.concatenate(
+                #         (output, outliers[:,0:12]), axis=0)
+                n = n - len(outliers)
+
+        random.shuffle(res[k]) #change the order
+        if n == 0:
+            n = 1
+        if output == []:
+            output=res[k][0:n]
+        else :
+            output = np.concatenate( (output,res[k][0:n]), axis=0 )
+    dst = 'evaluationDt' + str(percentage) + 'percent.csv'
+    logToCsv(output, dst ,None)
+    print '-----------', n_alimenti
+    with open(dst, 'a') as csvfile:
+        sw = csv.writer(
+            csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        n = min(len(outliers), n_alimenti/2)
+        random.shuffle(outliers)
+        for o in outliers[0:n+1, 0:12] :
+            sw.writerow(o)    
+        
 
 """ #session generation
 file = './logs/merged_anon_access_log'
@@ -623,8 +692,8 @@ print resources[dt[0][1]]["clf"].predict(d)
 
 """
 #kmean over all access log, calculate min, man and avg dists
-normalLog('./logs/merged_anon_access_log', splitByRes=False)
-print "normalLogDone"
+#normalLog('./logs/merged_anon_access_log', splitByRes=False)
+#print "normalLogDone"
 
 # kmeans = KMeans(n_clusters=4, random_state=0).fit(dt)
 # labels = kmeans.labels_
@@ -646,16 +715,20 @@ print "normalLogDone"
 #     print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
 #         dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
 
-dt = utilities.loadDataset_hash( '~/Documenti/Progetti/tesi/log/outputs/web_server_datasets/singleConnections/normal.csv') 
-#'./outputs/normalmerged_anon_access_log/_alimenti.csv')
-#originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
-attackDt = utilities.loadDataset_hash('~/Documenti/Progetti/tesi/log/outputs/web_server_datasets/singleConnections/signaled.csv')
-    #'./outputs/signaledmerged_anon_access_log/_alimenti.csv')
-print dt.shape, attackDt.shape
-#alldt = np.concatenate((dt, attackDt), axis=0)
-plotData(dt,2,4,"normal", attackDt, oneClass=False)
+#model usage
 
-# --------- outlier distance based
+# dt = utilities.loadDataset_hash( #'./outputs/web_server_datasets/sessions/sessions.csv'
+#     #'~/Documenti/Progetti/tesi/log/outputs/normalmerged_anon_access_log.csv')
+# './outputs/normalmerged_anon_access_log/_alimenti.csv')
+# originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
+# attackDt = utilities.loadDataset_hash(
+# #    '~/Documenti/Progetti/tesi/log/outputs/signaledmerged_anon_access_log.csv')
+# './outputs/signaledmerged_anon_access_log/_alimenti.csv')
+# print dt.shape, attackDt.shape
+# #alldt = np.concatenate((dt, attackDt), axis=0)
+# #plotData(dt,2,7,"normal", attackDt = attackDt, oneClass=False)
+
+# # --------- outlier distance based
 # th = 1.0
 
 # res, kmean = outlierDistanceBased(dt, 4 , th)
@@ -669,11 +742,11 @@ plotData(dt,2,4,"normal", attackDt, oneClass=False)
 #     if dist[i][labels[i]] > th :
 #         count +=1
 # print "found " + str(count) + " ouliers over " + str(len(attackDt)) + " connections "
-# print str( (count/len(attackDt))*100) + "%" 
+# print str( (count/len(attackDt))*100) + "%"
 
 #-------------outlier 1class svm
+#n_clust = 4
 
-# n_clust = 4
 # res = outlier1CSVMTrain(dt,4)
 # km = res["kmean"]
 # for i in range(n_clust):
@@ -697,7 +770,7 @@ plotData(dt,2,4,"normal", attackDt, oneClass=False)
 
 # for i in range(n_clust):
 #     name = "outliers"+str(i)+".csv"
-#     outliers = [originalDt[j] for j in res[i]["trainOutIndices"]]
+#     outliers = [originalDt[j] for j in ["trainOutIndices"]]
 #     with open(name, 'wb') as csvfile:
 #         sw = csv.writer(
 #             csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -705,3 +778,5 @@ plotData(dt,2,4,"normal", attackDt, oneClass=False)
 #             sw.writerow(con)
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
+
+subsetGenerator('./logs/merged_anon_access_log', 10)
