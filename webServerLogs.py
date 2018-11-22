@@ -19,6 +19,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import scale
 from sklearn.externals import joblib
 from statsmodels import robust
+from sklearn.preprocessing import MinMaxScaler
 ipsCache = {}
 sessions = {}
 
@@ -352,6 +353,7 @@ def sessionDatasetConverter(sessions, file):  #this functions takes the raw sess
                     if c > 1:
                         totalRepeatedReq += c
                 pErrors = (errors/totalHits) * 100
+
                 pGet = (gets / totalHits) * 100
                 pPost = (posts / totalHits) * 100
                 pHead = (heads / totalHits) * 100
@@ -380,24 +382,31 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None, oneClass= False):
         alldt = np.concatenate((dt, attackDt), axis=0)
         limit = len(dt)
 
-        reduced_all = PCA(n_components=n_axes).fit_transform(alldt)
+        reduced_all = PCA(n_components=n_axes).fit_transform(alldt[:,:])
         reduced_data = reduced_all[0:limit, :]
         reduced_data_attack = reduced_all[limit:, :]
         print len(reduced_data)
         print len(reduced_data_attack)
     else :
-        reduced_data = PCA(n_components=n_axes).fit_transform(dt)
+        reduced_data = PCA(n_components=n_axes).fit_transform(dt[:,:])
     # if attackDt is not None:
     #     reduced_data_attack = PCA(n_components=n_axes).fit_transform(attackDt)
-    kmeans = KMeans(init='k-means++', n_clusters=n_clust)
+    c = np.array([[-0.73989116, -0.09185221],[ 1.39323709, 0.47200059],[ 2.0422567 ,-0.40404301],[ 0.61062697, 1.54731632]])
+    kmeans = KMeans( init = c, n_clusters=n_clust)
     kmeans.fit(reduced_all) #if you want to train with the normal change to reduced_data
-
+    print kmeans.transform(reduced_data[0:2])
     # Step size of the mesh. Decrease to increase the quality of the VQ.
     h = .02  # point in the mesh [x_min, x_max]x[y_min, y_max].
 
-    # Plot the decision boundary. For that, we will assign a color to each
-    x_min, x_max = reduced_all[:, 0].min() - 1, reduced_all[:, 0].max() + 1
-    y_min, y_max = reduced_all[:, 1].min() - 1, reduced_all[:, 1].max() + 1
+    if attackDt is None:
+        # Plot the decision boundary. For that, we will assign a color to each
+        x_min, x_max = reduced_data[:, 0].min() - 1, reduced_data[:, 0].max() + 1
+        y_min, y_max = reduced_data[:, 1].min() - 1, reduced_data[:, 1].max() + 1
+    else :
+        x_min, x_max = reduced_all[:, 0].min() - 1, reduced_all[:, 0].max() + 1
+        y_min, y_max = reduced_all[:, 1].min() - 1, reduced_all[:, 1].max() + 1
+
+
     xx, yy = np.meshgrid(
         np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
 
@@ -482,54 +491,63 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None, oneClass= False):
         Z,
         interpolation='nearest',
         extent=(xx.min(), xx.max(), yy.min(), yy.max()),
-        cmap=plt.cm.Paired,
+        cmap=plt.cm.binary,
         aspect='auto',
         origin='lower')
     if oneClass:
         for k in resNorm:
             print k, "norm " + str(len(resNorm[k])), "out " + str(len(resOut[k]))
-            plt.plot(np.array(resNorm[k])[:, 0], np.array(resNorm[k])[:, 1], 'k.', markersize=2)
-            plt.plot(np.array(resOut[k])[:, 0], np.array(resOut[k])[:, 1], 'w.', markersize=2)
+            plt.plot(np.array(resNorm[k])[:, 0], np.array(resNorm[k])[:, 1], 'b.', markersize=1)
+            plt.plot(np.array(resOut[k])[:, 0], np.array(resOut[k])[:, 1], 'r.', markersize=1)
     else:
-        plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'k.', markersize=2)
+        plt.plot(reduced_data[:, 0], reduced_data[:, 1], 'b.', markersize=1)
         if attackDt is not None:
-            plt.plot(reduced_data_attack[:, 0], reduced_data_attack[:, 1], 'w.', markersize=2 )
+            plt.plot(reduced_data_attack[:, 0], reduced_data_attack[:, 1], 'r.', markersize=1 )
     # Plot the centroids as a white X
     centroids = kmeans.cluster_centers_
     print centroids
+    for i in range(n_clust):
+        plt.scatter(
+          centroids[i, 0],
+          centroids[i, 1],
+          marker='x',
+          s=169,
+          linewidths=3,
+          color='r',
+          zorder=10)
 
-    plt.scatter(
-        centroids[0, 0],
-        centroids[0, 1],
-        marker='x',
-        s=169,
-        linewidths=3,
-        color='w',
-        zorder=10)
-    plt.scatter(
-        centroids[1, 0],
-        centroids[1, 1],
-        marker='x',
-        s=169,
-        linewidths=3,
-        color='r',
-        zorder=10)
-    plt.scatter(
-        centroids[2, 0],
-        centroids[2, 1],
-        marker='x',
-        s=169,
-        linewidths=3,
-        color='g',
-        zorder=10)
-    plt.scatter(
-        centroids[3, 0],
-        centroids[3, 1],
-        marker='x',
-        s=169,
-        linewidths=3,
-        color='b',
-        zorder=10)
+    # plt.scatter(
+    #     centroids[0, 0],
+    #     centroids[0, 1],
+    #     marker='x',
+    #     s=169,
+    #     linewidths=3,
+    #     color='w',
+    #     zorder=10)
+    # plt.scatter(
+    #     centroids[1, 0],
+    #     centroids[1, 1],
+    #     marker='x',
+    #     s=169,
+    #     linewidths=3,
+    #     color='r',
+    #     zorder=10)
+    # plt.scatter(
+    #     centroids[2, 0],
+    #     centroids[2, 1],
+    #     marker='x',
+    #     s=169,
+    #     linewidths=3,
+    #     color='g',
+    #     zorder=10)
+    # plt.scatter(
+    #     centroids[3, 0],
+    #     centroids[3, 1],
+    #     marker='x',
+    #     s=169,
+    #     linewidths=3,
+    #     color='b',
+    #     zorder=10)
     plt.title('K-means clustering on the digits dataset (PCA-reduced data)\n'
               'Centroids are marked with white cross')
     plt.xlim(x_min, x_max)
@@ -583,6 +601,20 @@ def outlierDistanceBased(dt, n_clust, th):
     dist = kmeans.fit_transform(dt)
     print dist[0]
     labels = kmeans.predict(dt)
+
+    dist_to_cluster = {}
+    for i in range(len(labels)):
+        l = labels[i]
+        if not l in dist_to_cluster:
+            dist_to_cluster[l] = []
+        dist_to_cluster[l].append( dist[i][l] )
+
+    for k in dist_to_cluster:
+        avg = reduce(lambda x, y: x + y, dist_to_cluster[k]) / len(
+            dist_to_cluster[k])
+        print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
+            dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
+
     outliersIndices= []
     for i in range(n_clust):
         outliersIndices.append([])
@@ -594,7 +626,10 @@ def outlierDistanceBased(dt, n_clust, th):
 
     return outliersIndices, kmeans
 
+
+
 def subsetGenerator(path, percentage):
+    percentage = 10
     dt = fileToDic(path)
     res = {}
     print dt[0]
@@ -603,42 +638,54 @@ def subsetGenerator(path, percentage):
         if not  r in res:
             res[r] = []
         res[r].append(el)
+    outSrc = { # the sources where to take outliers
+        "name" : ['/alimenti', '/', '/combo/'],
+        "n_clusts" : [4,2,4],
+        "numbers" : [0,0,0],
+        "outliers" : [[],[],[]]
+        }
     output = []
-    n_alimenti = 0
-    outliers = []
+    output1 = []
+
     for k in res: #k is a resource
         n = (len(res[k])*percentage) / 100 #number of connection the we can take from this resource
-        if k == '/alimenti':
-            n_alimenti = n
-            print 'alimenti'
-            path1 = '/home/carlo/Documenti/Progetti/tesi/log/kmeanRes/all_alimenti/distance_1.0/'
-            path2 = '/home/carlo/Documenti/Progetti/tesi/log/kmeanRes/all_alimenti/1CLASS_001/'
-            for j in range(4):
+        if k in outSrc["name"]:
+            name = 'alimenti'
+            if k == '/':
+                name = 'home'
+            elif k == '/combo/':
+                name = 'combo'
+            ind = outSrc["name"].index(k)
+            outSrc["numbers"][ind] = n
+            print name
+            path1 = '/home/carlo/Documenti/Progetti/tesi/log/kmeanRes/all_'+name+'/distance_1.0/'
+            path2 = '/home/carlo/Documenti/Progetti/tesi/log/kmeanRes/all_'+name+'/1CLASS_001/'
+            for j in range(outSrc["n_clusts"][ind]):
                 cluster = 'outliers' + str(j) + '.csv'
                 p1 = path1 + cluster
                 p2 = path2 + cluster
                 d1 = utilities.loadDataset(p1)
                 d2 = utilities.loadDataset(p2)
-                if outliers == []:
-                    outliers = d1[:,:]
+                if outSrc["outliers"][ind] == []:
+                    outSrc["outliers"][ind] = d1[:,:]
                 else:
-                    outliers = np.concatenate((outliers, d1), axis=0)
-                outliers = np.concatenate((outliers, d2), axis=0)
+                    outSrc["outliers"][ind] = np.concatenate((outSrc["outliers"][ind], d1), axis=0)
+                outSrc["outliers"][ind] = np.concatenate((outSrc["outliers"][ind], d2), axis=0)
 
-            if len(outliers > n/2):
-                # random.shuffle(outliers)
+            if len(outSrc["outliers"][ind] > n/2):
+                # random.shuffle(outSrc["outliers"][ind])
                 # if output == []:
-                #     output=outliers[0:n/2, 0:12]
+                #     output=outSrc["outliers"][ind][0:n/2, 0:12]
                 # else:
-                #     output = np.concatenate(( output, outliers[0:n/2, 0:12]), axis=0)
+                #     output = np.concatenate(( output, outSrc["outliers"][ind][0:n/2, 0:12]), axis=0)
                 n = n/2
             else:
                 # if output == []:
-                #     output = outliers[:,0:12]
+                #     output = outSrc["outliers"][ind][:,0:12]
                 # else:
                 #     output = np.concatenate(
-                #         (output, outliers[:,0:12]), axis=0)
-                n = n - len(outliers)
+                #         (output, outSrc["outliers"][ind][:,0:12]), axis=0)
+                n = n - len(outSrc["outliers"][ind])
 
         random.shuffle(res[k]) #change the order
         if n == 0:
@@ -647,25 +694,44 @@ def subsetGenerator(path, percentage):
             output=res[k][0:n]
         else :
             output = np.concatenate( (output,res[k][0:n]), axis=0 )
-    dst = 'evaluationDt' + str(percentage) + 'percent.csv'
-    logToCsv(output, dst ,None)
-    print '-----------', n_alimenti
-    with open(dst, 'a') as csvfile:
-        sw = csv.writer(
-            csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        n = min(len(outliers), n_alimenti/2)
-        random.shuffle(outliers)
-        for o in outliers[0:n+1, 0:12] :
-            sw.writerow(o)    
-        
+        m = n/10
+        if m == 0:
+            m = 1
+        if output1 == []:
+            output1=res[k][n:n+m]
+        else :
+            output1 = np.concatenate( (output1,res[k][n:n+m]), axis=0 )
+    dst1 = 'evaluation_dt' + str(percentage) + 'percent.csv'
+    logToCsv(output, dst1 ,None)
+    dst2 = 'evaluation_dt' + str(1) + 'percent.csv'
+    logToCsv(output1, dst2 ,None)
 
-""" #session generation
-file = './logs/merged_anon_access_log'
-l = fileToDic(file)
-sessions=sessionConverter(l)
-sessionDatasetConverter(sessions,file)
+    with open(dst1, 'a') as csvfile:
+        with open(dst2, 'a') as csvfile2:
+            for i in range(3):
+                print '-----------', outSrc["numbers"][i]
+                sw = csv.writer(
+                    csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                sw2 = csv.writer(
+                    csvfile2, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-"""
+                n = min(len(outSrc["outliers"][i]), outSrc["numbers"][i]/2)
+                n2 = min(len(outSrc["outliers"][i]), outSrc["numbers"][i]/20)
+                random.shuffle(outSrc["outliers"][i])
+                for o in outSrc["outliers"][i][0:n+1, 0:12] :
+                    sw.writerow(o)
+                random.shuffle(outSrc["outliers"][i])
+                for o in outSrc["outliers"][i][0:n2 + 1, 0:12]:
+                    sw2.writerow(o)
+
+
+#session generation
+# file = './logs/merged_anon_access_log'
+# l = fileToDic(file)
+# sessions=sessionConverter(l)
+# sessionDatasetConverter(sessions,file)
+
+
 """
 #normalLog('./access_log')
 dt = utilities.loadDataset('./outputs/normalaccess_log/_alimenti.csv')
@@ -717,45 +783,65 @@ print resources[dt[0][1]]["clf"].predict(d)
 
 #model usage
 
-# dt = utilities.loadDataset_hash( #'./outputs/web_server_datasets/sessions/sessions.csv'
-#     #'~/Documenti/Progetti/tesi/log/outputs/normalmerged_anon_access_log.csv')
-# './outputs/normalmerged_anon_access_log/_alimenti.csv')
-# originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_alimenti.csv')
-# attackDt = utilities.loadDataset_hash(
-# #    '~/Documenti/Progetti/tesi/log/outputs/signaledmerged_anon_access_log.csv')
-# './outputs/signaledmerged_anon_access_log/_alimenti.csv')
-# print dt.shape, attackDt.shape
-# #alldt = np.concatenate((dt, attackDt), axis=0)
-# #plotData(dt,2,7,"normal", attackDt = attackDt, oneClass=False)
+dt = utilities.loadDataset_hash( #'./outputs/web_server_datasets/sessions/sessions.csv')
+#'~/Documenti/Progetti/tesi/log/outputs/normalmerged_anon_access_log.csv')
+'./outputs/normalmerged_anon_access_log/_alimenti.csv')
 
-# # --------- outlier distance based
-# th = 1.0
+attackDt = utilities.loadDataset_hash( './outputs/signaledmerged_anon_access_log/_alimenti.csv')
 
-# res, kmean = outlierDistanceBased(dt, 4 , th)
-# for i in range(4):
-#     print i, len(res[i])
+# originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_combo_.csv')
+#     '~/Documenti/Progetti/tesi/log/outputs/signaledmerged_anon_access_log.csv')
+# './outputs/signaledmerged_anon_access_log/_combo_.csv')
+print dt.shape
 
-# dist = kmean.transform(attackDt)
-# labels = kmean.predict(attackDt)
-# count = 0
-# for i in range(len(attackDt)):
-#     if dist[i][labels[i]] > th :
-#         count +=1
-# print "found " + str(count) + " ouliers over " + str(len(attackDt)) + " connections "
-# print str( (count/len(attackDt))*100) + "%"
+#plotData(dt,2,4,"normal", attackDt= attackdt, oneClass=False)
 
-#-------------outlier 1class svm
-#n_clust = 4
+# --------- outlier distance based
+th = 1.0
+n_clust = 4
+res, kmean = outlierDistanceBased(dt, n_clust , th)
+for i in range(n_clust):
+    print i, len(res[i])
 
-# res = outlier1CSVMTrain(dt,4)
+dist = kmean.transform(attackDt)
+labels = kmean.predict(attackDt)
+count = 0
+for i in range(len(attackDt)):
+    if dist[i][labels[i]] > th :
+        count +=1
+print "found " + str(count) + " ouliers over " + str(len(attackDt)) + " connections "
+print str( (count/len(attackDt))*100) + "%"
+
+dt_outliers = [dt[j] for j in res[0]]
+for i in range(1, n_clust):
+    outliers = [dt[j] for j in res[i]]
+    dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
+
+plotData(dt,2,n_clust,'ciao',dt_outliers, oneClass=False)
+
+# #-------------outlier 1class svm
+# n_clust = 4
+
+# res = outlier1CSVMTrain(dt,n_clust)
 # km = res["kmean"]
 # for i in range(n_clust):
 #     print "cluster " + str(i) + ": " + str(len(res[i]["trainNormIndices"])) + " normals, " + str(len(res[i]["trainOutIndices"])) + " outliers"
 
-# #save model
-# joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
-# for k in range(n_clust):
-#     joblib.dump(res[k]["clf"], './models/oneCsvm_'+k+'_001.joblib')
+# #plot model result
+# dt_outliers = [dt[j] for j in res[0]["trainOutIndices"]]
+# dt_normals = [dt[j] for j in res[0]["trainNormIndices"]]
+# for i in range(1,n_clust):
+#     outliers = [dt[j] for j in res[i]["trainOutIndices"]]
+#     normals = [dt[j] for j in res[i]["trainNormIndices"]]
+#     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
+#     dt_normals = np.concatenate((dt_normals, normals), axis=0)
+# #plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
+
+
+# # save model
+# # joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
+# # for k in range(n_clust):
+# #     joblib.dump(res[k]["clf"], './models/oneCsvm_'+k+'_001.joblib')
 
 # attackClusters = km.predict(attackDt)
 # outliersCount = 0
@@ -764,19 +850,76 @@ print resources[dt[0][1]]["clf"].predict(d)
 #     r = res[k]["clf"].predict(attackDt[i].reshape(1,-1))
 #     if r == -1:
 #         outliersCount += 1
-
+# dt_outliers = np.concatenate((dt_outliers, attackDt), axis = 0)
+# plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
 # print "found " + str(outliersCount) + " ouliers over " + str(len(attackDt)) + " connections "
 # print str( (outliersCount/len(attackDt))*100) + "%"
 
 # for i in range(n_clust):
 #     name = "outliers"+str(i)+".csv"
-#     outliers = [originalDt[j] for j in ["trainOutIndices"]]
+#     outliers = [originalDt[j] for j in res[i]["trainOutIndices"]]
 #     with open(name, 'wb') as csvfile:
 #         sw = csv.writer(
 #             csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 #         for con in outliers:
-#             sw.writerow(con)
+#            sw.writerow(con)
 #TODO: find a better way to catch "cat" because it appears in a lot a words
 #TODO: per identificare le soglie sulla lunghezza da non considerare overflow e potenziale DOS usare cdf per capire l'andamento generale del sistem
 
-subsetGenerator('./logs/merged_anon_access_log', 10)
+#subsetGenerator('./logs/merged_anon_access_log', 10)
+
+#session evaluation
+# dt = utilities.loadDataset('./outputs/web_server_datasets/sessions/sessions.csv')
+# print dt.shape
+# scaler = MinMaxScaler(feature_range=(0, 1))
+# dt = scaler.fit_transform(dt[:,:-4])
+
+#pure one class svm
+# clf = svm.OneClassSVM(nu=0.01, kernel="rbf", gamma='auto')
+# pred = clf.fit_predict(dt)
+# outIndices = []
+# for i in range(len(pred)):
+#     if pred[i] == -1:
+#         outIndices.append(i)
+
+# print len(dt), len(outIndices)
+
+# plotData(dt, 2, 2, "normal", oneClass=True)
+# # --------- outlier distance based
+# th = 1.0
+# n_clust = 4
+# res, kmean = outlierDistanceBased(dt, n_clust , th)
+# for i in range(n_clust):
+#     print i, len(res[i])
+
+#-------------outlier 1class svm
+# n_clust = 2
+
+# res = outlier1CSVMTrain(dt,n_clust)
+# km = res["kmean"]
+# for i in range(n_clust):
+#     print "cluster " + str(i) + ": " + str(len(res[i]["trainNormIndices"])) + " normals, " + str(len(res[i]["trainOutIndices"])) + " outliers"
+
+# dt_outliers = [dt[j] for j in res[0]["trainOutIndices"]]
+# dt_normals = [dt[j] for j in res[0]["trainNormIndices"]]
+# for i in range(1,n_clust):
+#     outliers = [dt[j] for j in res[i]["trainOutIndices"]]
+#     normals = [dt[j] for j in res[i]["trainNormIndices"]]
+#     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
+#     dt_normals = np.concatenate((dt_normals, normals), axis=0)
+# plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
+#save model
+# joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
+# for k in range(n_clust):
+#     joblib.dump(res[k]["clf"], './models/oneCsvm_'+k+'_001.joblib')
+
+
+
+# for i in range(n_clust):
+#     name = "outliers"+str(i)+".csv"
+#     outliers = [dt[j] for j in res[i]["trainOutIndices"]]
+#     with open(name, 'wb') as csvfile:
+#         sw = csv.writer(
+#             csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+#         for con in outliers:
+#            sw.writerow(con)
