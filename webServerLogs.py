@@ -20,6 +20,7 @@ from sklearn.preprocessing import scale
 from sklearn.externals import joblib
 from statsmodels import robust
 from sklearn.preprocessing import MinMaxScaler
+from sklearn import metrics
 ipsCache = {}
 sessions = {}
 
@@ -489,7 +490,10 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None, oneClass= False):
     #     reduced_data_attack = PCA(n_components=n_axes).fit_transform(attackDt)
     #c = np.array([[-0.73989116, -0.09185221],[ 1.39323709, 0.47200059],[ 2.0422567 ,-0.40404301],[ 0.61062697, 1.54731632]])
     kmeans = KMeans( n_clusters=n_clust)
-    kmeans.fit(reduced_data) #if you want to train with the normal change to reduced_data
+    if attackDt is not None:
+        kmeans.fit(reduced_all) #if you want to train with the normal change to reduced_data
+    else:
+        kmeans.fit(reduced_data)
     print kmeans.transform(reduced_data[0:2])
     # Step size of the mesh. Decrease to increase the quality of the VQ.
     h = .02  # point in the mesh [x_min, x_max]x[y_min, y_max].
@@ -663,14 +667,13 @@ def outlier1CSVMTrain(dt, n_clust):
     res["kmean"] = kmeans
     for i in range(n_clust):
         res[i] = {}
-        res[i]["data"] = [] #data assigned to cluster i
-        res[i]["clf"] = svm.OneClassSVM(nu=0.01, kernel="rbf", gamma='auto') #1class svm for cluster i
+        res[i]["data"] = [] #indices of data assigned to cluster i
+        res[i]["clf"] = svm.OneClassSVM(nu=0.1, kernel="rbf", gamma='auto') #1class svm for cluster i
         res[i]["trainNormIndices"] = [] #indices of items marked as actually belonging to cluster i
         res[i]["trainOutIndices"] = [] #indices of items marked as outlier for the cluster i
 
-
     for i in range( len(dt) ):  #split data basing on cluster label
-        res[ labels[i] ]["data"].append(dt[i])
+        res[ labels[i] ]["data"].append(i)
     print "data splitted"
 
     for k in range(n_clust):
@@ -678,13 +681,14 @@ def outlier1CSVMTrain(dt, n_clust):
         print len(res[k]["data"])
 
     for k in range(n_clust):  #train the 1classSVM
-        predictions = res[k]["clf"].fit_predict(res[k]["data"])  #c[k].fit( np.array(d[k])[0:2000,:] )
+        data = [dt[j] for j in res[k]["data"]]
+        predictions = res[k]["clf"].fit_predict(data)  #c[k].fit( np.array(d[k])[0:2000,:] )
         print "prediction " + str(k) + " done"
         for i in range(len(predictions)):
             if predictions[i] == 1:
-                res[k]["trainNormIndices"].append(i)
+                res[k]["trainNormIndices"].append(res[k]["data"][i])
             else:
-                res[k]["trainOutIndices"].append(i)
+                res[k]["trainOutIndices"].append(res[k]["data"][i])
 
     for k in range(n_clust):
         print k
@@ -821,7 +825,6 @@ def subsetGenerator(path, percentage):
                     sw2.writerow(o)
 
 
-normalLog('./logs/extract-attack-log.txt')
 
 #session generation
 # file = './logs/merged_anon_access_log'
@@ -884,25 +887,59 @@ print resources[dt[0][1]]["clf"].predict(d)
 
 #model usage
 
-#dt = utilities.loadDataset_hash( './outputs/web_server_datasets/sessions/sessions.csv')
+dt = utilities.loadDataset_hash( #'./outputs/web_server_datasets/sessions/sessions.csv')
 #'~/Documenti/Progetti/tesi/log/outputs/normalmerged_anon_access_log.csv')
-#'./outputs/normalmerged_anon_access_log/_alimenti.csv')
+'./allEvaluation.csv')
 
-#attackDt = utilities.loadDataset_hash( './outputs/signaledmerged_anon_access_log/_alimenti.csv')
+# attackDt = utilities.loadDataset_hash(
+#     './outputs/signaledraw_complete_evaluation.csv')
 
-# originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_combo_.csv')
+originalDt = utilities.loadDataset(#'./outputs/normalmerged_anon_access_log/_combo_.csv')
 #     '~/Documenti/Progetti/tesi/log/outputs/signaledmerged_anon_access_log.csv')
 # './outputs/signaledmerged_anon_access_log/_combo_.csv')
+'./outputs/normalraw_complete_evaluation.csv')
 #print dt.shape
 
-#plotData(dt,2,4,"normal", attackDt= attackdt, oneClass=False)
+# #evaluation
+log = fileToDic('./logs/raw_complete_evaluation')
+logToCsv(log, 'allEvaluation.csv', log)
+#normalLog('./logs/raw_complete_evaluation', splitByRes=False)
+evaluationDT = utilities.loadDataset('./outputs/evaluation/evaluation_dt1percent.csv', separetor=',')
+# # c = 0
+# # for e in evaluationDT:
+# #     if c < 4790:
+# #         if len(e[6]) > 2:
+# #             rsize = e[6][0:-2]
+# #         else:
+# #             rsize = e[6]
+# #         print e[2][1:-1] + ' - - [' + e[1][1:-1] + ' +0100] "' + e[4][1:-1] + ' ' + e[9][1:-1] + ' HTTP/' +  e[3][1:-1]+'" '+e[5]+ ' '+rsize+" " +e[7]+ ' ' + e[8]
+# #     else:
+# #         if len(str(e[1])) > 2:
+# #             rsize = str(e[1])[0:-2]
+# #         else:
+# #             rsize = str(e[1])
+# #         print e[3][1:-1] + ' - - [' + e[2][1:-1] + ' +0100] "' + e[5][1:-1] + ' ' + e[8][1:-1] + ' HTTP/' +  e[4][1:-1]+'" '+str(e[10])+ ' '+str(rsize)+" " +e[7]+ ' ' + e[6]
+# #     c += 1
+# labels = []
+# for c in evaluationDT:
+#     if c[0] == '/alimenti':
+#         labels.append(c[-1])
+labels = evaluationDT[:,-1]
+
+print len(labels)
+tmp = np.array([1] * 137)
+labels = np.concatenate((labels,tmp))
+#plotData(dt,2,4,"normal", oneClass=False)
+print len(labels), len(dt)
+#print originalDt[0:5]
+
 
 # --------- outlier distance based
-# th = 1.0
-# n_clust = 4
-# res, kmean = outlierDistanceBased(dt, n_clust , th)
-# for i in range(n_clust):
-#     print i, len(res[i])
+th = 0.4
+n_clust = 4
+res, kmean = outlierDistanceBased(dt, n_clust , th)
+for i in range(n_clust):
+    print i, len(res[i])
 
 # dist = kmean.transform(attackDt)
 # labels = kmean.predict(attackDt)
@@ -913,12 +950,39 @@ print resources[dt[0][1]]["clf"].predict(d)
 # print "found " + str(count) + " ouliers over " + str(len(attackDt)) + " connections "
 # print str( (count/len(attackDt))*100) + "%"
 
-# dt_outliers = [dt[j] for j in res[0]]
-# for i in range(1, n_clust):
-#     outliers = [dt[j] for j in res[i]]
-#     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
-# dt_outliers = np.concatenate((dt_outliers,attackDt), axis=0)
-# plotData(dt,2,n_clust,'ciao',dt_outliers, oneClass=False)
+dt_outliers = [dt[j] for j in res[0]]
+for i in range(1, n_clust):
+    outliers = [dt[j] for j in res[i]]
+    print len(outliers)
+    print len(dt_outliers)
+    dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
+plotData(dt,2,n_clust,'ciao',dt_outliers, oneClass=False)
+
+predicted = [0] * len(dt)
+for k in range(n_clust):
+    for i in res[k]:
+        predicted[i] = 1
+
+labels= list(labels)
+print labels[0:10]
+print predicted[0:10]
+    
+print "len of labels and predicted:"
+print len(labels), len(predicted)
+#labels = labels[0:len(predicted)]
+
+cm = metrics.confusion_matrix(labels, predicted, labels=[1, 0])
+print cm
+tp, fn, fp, tn = cm.ravel()
+
+print tp, fp, fn, tn
+print 'accuracy ', (tp + tn) / (tp + tn + fp + fn + 0.0) * 100
+print 'precision ', (tp) / (tp + fp + 0.0) * 100
+print 'recall ', (tp) / (tp + fn + 0.0) * 100
+print 'far ', fp / (fp + tn + 0.0) * 100
+
+
+
 
 # #-------------outlier 1class svm
 # n_clust = 4
@@ -936,13 +1000,33 @@ print resources[dt[0][1]]["clf"].predict(d)
 #     normals = [dt[j] for j in res[i]["trainNormIndices"]]
 #     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
 #     dt_normals = np.concatenate((dt_normals, normals), axis=0)
-# #plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
+# plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
+
+# predicted = [0] * len(dt)
+# for k in range(n_clust):
+#     for i in res[k]["trainOutIndices"]:
+#         predicted[i] = 1
+
+# print "len of labels and predicted:"
+# print len(labels), len(predicted)
+# labels = labels[0:len(predicted)]
+
+# cm = metrics.confusion_matrix(
+#         labels, predicted, labels=[1, 0])
+# print cm
+# tp, fn, fp, tn = cm.ravel()
+
+# print tp, fp, fn, tn
+# print 'accuracy ', (tp + tn) / (tp + tn + fp + fn + 0.0) * 100
+# print 'precision ', (tp) / (tp + fp + 0.0) * 100
+# print 'recall ', (tp) / (tp + fn + 0.0) * 100
+# print 'far ', fp / (fp + tn + 0.0) * 100
 
 
-# # save model
-# # joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
-# # for k in range(n_clust):
-# #     joblib.dump(res[k]["clf"], './models/oneCsvm_'+k+'_001.joblib')
+# save model
+# joblib.dump(km, './models/kmeanNormalAlimenti.joblib')
+# for k in range(n_clust):
+#     joblib.dump(res[k]["clf"], './models/oneCsvm_'+k+'_001.joblib')
 
 # attackClusters = km.predict(attackDt)
 # outliersCount = 0
