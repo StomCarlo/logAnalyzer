@@ -35,7 +35,8 @@ def fileToDic(filePath):
         content = f.readlines()
         log = []
         for conn in content:
-
+            if len(conn) <=2:
+                continue
             logData = line_parser(
                 conn
             )
@@ -221,6 +222,101 @@ def sessionConverter(log):
         json.dump(sessions, fp, indent=4, separators=(',', ': '))
     return sessions
 
+def sessionVectorizer(sessions):
+
+    uniqueResources = set() #a set of resources
+    bw = set()
+    for k in sessions:  #iterate over session outer key
+        for s in sessions[k]:  #iterate over sessions with the same inner key
+            for con in s["connections"]:
+                uniqueResources.add(con["Resource"])
+                bw.add(con["ReturnSize"])
+    print ("uniqueResources done")
+    if '-' in bw:
+        bw.remove('-')
+    print min(bw), max(bw)
+
+    features = [
+        'TotalHits', 'TotalNightTimeReq', 'TotalRepeatedReq', 'nErrors',
+        'nGet', 'nPost', 'nHead', 'nOtherMethod', 'IsRobot.txtVisited',
+        'nUnassignedReferrer', 'nTimeLess1s', 'nTimeGt10s', 'nBwGt20000',
+        'nBwLess20000'
+    ]
+    for r in uniqueResources:
+        features.append('res_' + r)
+    features.append('res_other')
+
+
+    print len(features)
+    with open('sessionsVector.csv', 'wb') as csvfile:
+        sw = csv.writer(
+            csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        sw.writerow(features)
+        for k in sessions:  #iterate over session outer key
+            for s in sessions[k]:  #iterate over sessions with the same inner key
+                counter = {}
+                for k in features:
+                    counter[k] = 0
+                counter["TotalHits"] = len(s["connections"])
+                reqs = []
+                FMT = '%d/%b/%Y:%H:%M:%S'
+
+                first = True
+                oldTime = 0
+                currTime = 0
+                for con in s["connections"]:
+                    if first:
+                        first = False
+                        oldTime = datetime.strptime(con["TimeStamp"][1:-1], FMT)
+                    else:
+                        currTime = datetime.strptime(con["TimeStamp"][1:-1], FMT)
+                        if (currTime-oldTime).seconds > 10:
+                            counter["nTimeGt10s"] += 1
+                        elif (currTime-oldTime).seconds < 1:
+                            counter["nTimeLess1s"] += 1
+                        oldTime = currTime
+                    reqs.append(con["ServerPath"])  #used to count repeated requests
+                    if "robots.txt" in con["ServerPath"]:
+                        counter["IsRobot.txtVisited"] = 1
+                    if int(con["StatusCode"]) >= 400:
+                        counter["nErrors"] += 1
+                    if con["RequestMethod"] == '"GET"':
+                        counter["nGet"] += 1
+                    elif con["RequestMethod"] == '"POST"':
+                        counter["nPost"] += 1
+                    elif con["RequestMethod"] == '"HEAD"':
+                        counter["nHead"] += 1
+                    else:
+                        counter["nOtherMethod"] += 1
+                    if con["Referrer"] == "\"-\"":
+                        counter["nUnassignedReferrer"] += 1
+                    if con["ReturnSize"] != '"-"' and con["ReturnSize"] != '-':
+                        if con["ReturnSize"] > 20000:
+                            counter["nBwGt20000"] +=1
+                        else :
+                            counter["nBwLess20000"] += 1
+                    conHour = datetime.strptime(con["TimeStamp"][1:-1], FMT).hour
+                    if conHour >= 00 and conHour <= 7:
+                        counter["TotalNightTimeReq"] += 1
+                    found = False
+                    for r in uniqueResources:
+                        if con['Resource'] == r:
+                            counter["res_"+r] += 1
+                            found = True
+                            break
+                    if not found:
+                        counter["res_other"] +=1
+                uniqueReq = set(reqs)
+                totalRepeatedReq = 0
+                for r in uniqueReq:
+                    c = reqs.count(r)
+                    if c > 1:
+                        totalRepeatedReq += c
+                counter["TotalRepeatedReq"] = totalRepeatedReq
+                values = []
+                for k in features:
+                    values.append(counter[k])
+                sw.writerow(values)
 
 def sessionDatasetConverter(sessions, file):  #this functions takes the raw sessions and ectract the features used in https://www.researchgate.net/publication/276139295_Agglomerative_Approach_for_Identification_and_Elimination_of_Web_Robots_from_Web_Server_Logs_to_Extract_Knowledge_about_Actual_Visitors
     l = fileToDic(file)
@@ -391,9 +487,9 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None, oneClass= False):
         reduced_data = PCA(n_components=n_axes).fit_transform(dt[:,:])
     # if attackDt is not None:
     #     reduced_data_attack = PCA(n_components=n_axes).fit_transform(attackDt)
-    c = np.array([[-0.73989116, -0.09185221],[ 1.39323709, 0.47200059],[ 2.0422567 ,-0.40404301],[ 0.61062697, 1.54731632]])
-    kmeans = KMeans( init = c, n_clusters=n_clust)
-    kmeans.fit(reduced_all) #if you want to train with the normal change to reduced_data
+    #c = np.array([[-0.73989116, -0.09185221],[ 1.39323709, 0.47200059],[ 2.0422567 ,-0.40404301],[ 0.61062697, 1.54731632]])
+    kmeans = KMeans( n_clusters=n_clust)
+    kmeans.fit(reduced_data) #if you want to train with the normal change to reduced_data
     print kmeans.transform(reduced_data[0:2])
     # Step size of the mesh. Decrease to increase the quality of the VQ.
     h = .02  # point in the mesh [x_min, x_max]x[y_min, y_max].
@@ -725,10 +821,15 @@ def subsetGenerator(path, percentage):
                     sw2.writerow(o)
 
 
+normalLog('./logs/extract-attack-log.txt')
+
 #session generation
 # file = './logs/merged_anon_access_log'
 # l = fileToDic(file)
-# sessions=sessionConverter(l)
+#sessions=sessionConverter(l)
+# with open('sessions.json') as f:
+#     sessions = json.load(f)
+#     sessionVectorizer(sessions)
 # sessionDatasetConverter(sessions,file)
 
 
@@ -783,41 +884,41 @@ print resources[dt[0][1]]["clf"].predict(d)
 
 #model usage
 
-dt = utilities.loadDataset_hash( #'./outputs/web_server_datasets/sessions/sessions.csv')
+#dt = utilities.loadDataset_hash( './outputs/web_server_datasets/sessions/sessions.csv')
 #'~/Documenti/Progetti/tesi/log/outputs/normalmerged_anon_access_log.csv')
-'./outputs/normalmerged_anon_access_log/_alimenti.csv')
+#'./outputs/normalmerged_anon_access_log/_alimenti.csv')
 
-attackDt = utilities.loadDataset_hash( './outputs/signaledmerged_anon_access_log/_alimenti.csv')
+#attackDt = utilities.loadDataset_hash( './outputs/signaledmerged_anon_access_log/_alimenti.csv')
 
 # originalDt = utilities.loadDataset('./outputs/normalmerged_anon_access_log/_combo_.csv')
 #     '~/Documenti/Progetti/tesi/log/outputs/signaledmerged_anon_access_log.csv')
 # './outputs/signaledmerged_anon_access_log/_combo_.csv')
-print dt.shape
+#print dt.shape
 
 #plotData(dt,2,4,"normal", attackDt= attackdt, oneClass=False)
 
 # --------- outlier distance based
-th = 1.0
-n_clust = 4
-res, kmean = outlierDistanceBased(dt, n_clust , th)
-for i in range(n_clust):
-    print i, len(res[i])
+# th = 1.0
+# n_clust = 4
+# res, kmean = outlierDistanceBased(dt, n_clust , th)
+# for i in range(n_clust):
+#     print i, len(res[i])
 
-dist = kmean.transform(attackDt)
-labels = kmean.predict(attackDt)
-count = 0
-for i in range(len(attackDt)):
-    if dist[i][labels[i]] > th :
-        count +=1
-print "found " + str(count) + " ouliers over " + str(len(attackDt)) + " connections "
-print str( (count/len(attackDt))*100) + "%"
+# dist = kmean.transform(attackDt)
+# labels = kmean.predict(attackDt)
+# count = 0
+# for i in range(len(attackDt)):
+#     if dist[i][labels[i]] > th :
+#         count +=1
+# print "found " + str(count) + " ouliers over " + str(len(attackDt)) + " connections "
+# print str( (count/len(attackDt))*100) + "%"
 
-dt_outliers = [dt[j] for j in res[0]]
-for i in range(1, n_clust):
-    outliers = [dt[j] for j in res[i]]
-    dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
-
-plotData(dt,2,n_clust,'ciao',dt_outliers, oneClass=False)
+# dt_outliers = [dt[j] for j in res[0]]
+# for i in range(1, n_clust):
+#     outliers = [dt[j] for j in res[i]]
+#     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
+# dt_outliers = np.concatenate((dt_outliers,attackDt), axis=0)
+# plotData(dt,2,n_clust,'ciao',dt_outliers, oneClass=False)
 
 # #-------------outlier 1class svm
 # n_clust = 4
@@ -868,11 +969,6 @@ plotData(dt,2,n_clust,'ciao',dt_outliers, oneClass=False)
 
 #subsetGenerator('./logs/merged_anon_access_log', 10)
 
-#session evaluation
-# dt = utilities.loadDataset('./outputs/web_server_datasets/sessions/sessions.csv')
-# print dt.shape
-# scaler = MinMaxScaler(feature_range=(0, 1))
-# dt = scaler.fit_transform(dt[:,:-4])
 
 #pure one class svm
 # clf = svm.OneClassSVM(nu=0.01, kernel="rbf", gamma='auto')
@@ -882,9 +978,17 @@ plotData(dt,2,n_clust,'ciao',dt_outliers, oneClass=False)
 #     if pred[i] == -1:
 #         outIndices.append(i)
 
+
+#session evaluation
+# dt = utilities.loadDataset('./sessionsVector.csv')
+# print dt.shape
+# scaler = MinMaxScaler(feature_range=(0, 1))
+# #dt = np.delete(dt, [1,2,3,4,5,6,7,8,16,17,19], axis=1)
+#dt = scaler.fit_transform(dt[:,:])
+
 # print len(dt), len(outIndices)
 
-# plotData(dt, 2, 2, "normal", oneClass=True)
+#plotData(dt, 2, 3, "normal", oneClass=False)
 # # --------- outlier distance based
 # th = 1.0
 # n_clust = 4
