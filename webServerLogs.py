@@ -658,7 +658,7 @@ def plotData(dt, n_axes, n_clust, originalDt, attackDt = None, oneClass= False):
     plt.show()
     return plt
 
-def outlier1CSVMTrain(dt, n_clust, th):
+def outlier1CSVMTrain(dt, n_clust, th, gamma = 'auto'):
     kmeans = KMeans(init='k-means++', n_clusters=n_clust)
 
     kmeans.fit(dt)
@@ -669,7 +669,7 @@ def outlier1CSVMTrain(dt, n_clust, th):
     for i in range(n_clust):
         res[i] = {}
         res[i]["data"] = [] #indices of data assigned to cluster i
-        res[i]["clf"] = svm.OneClassSVM(nu=th, kernel="rbf", gamma='auto') #1class svm for cluster i
+        res[i]["clf"] = svm.OneClassSVM(nu=th, kernel="rbf", gamma=gamma) #1class svm for cluster i
         res[i]["trainNormIndices"] = [] #indices of items marked as actually belonging to cluster i
         res[i]["trainOutIndices"] = [] #indices of items marked as outlier for the cluster i
 
@@ -893,15 +893,15 @@ print resources[dt[0][1]]["clf"].predict(d)
 #'./outputs/normalraw_complete_evaluation/_alimenti.csv')
 
 
-#evaluation = utilities.loadDataset_hash( #'./outputs/web_server_datasets/sessions/sessions.csv')
-#'./eval_correct.csv')
+evaluation = utilities.loadDataset_hash( #'./outputs/web_server_datasets/sessions/sessions.csv')
+'./eval_correct.csv')
 #'./outputs/normalraw_complete_evaluation/_alimenti.csv')
 
-dt, evaluation = utilities.loadDatasets_hash(
-    '~/Documenti/Progetti/tesi/log/outputs/normalmerged_anon_access_log/_alimenti.csv',
-    #'~/Documenti/Progetti/tesi/log/outputs/signaledmerged_anon_access_log/_alimenti.csv')
-    './eval_correct.csv')
-print dt.shape, evaluation.shape
+# dt, evaluation = utilities.loadDatasets_hash(
+#     '~/Documenti/Progetti/tesi/log/outputs/normalmerged_anon_access_log/_alimenti.csv',
+#     #'~/Documenti/Progetti/tesi/log/outputs/signaledmerged_anon_access_log/_alimenti.csv')
+#     './eval_correct.csv')
+# print dt.shape, evaluation.shape
 
 
 # attackDt = utilities.loadDataset_hash(
@@ -941,6 +941,34 @@ for c in labelsDT:
 #labels = labelsDT[:,-1]
 
 print len(labels)
+
+#balanced dt
+n_attacks = 89
+indices = range(len(labels))
+random.shuffle(indices)
+indices = indices[0:n_attacks*2]
+indices = [
+    3605, 862, 2461, 3750, 816, 1120, 713, 1619, 2741, 3465, 2721, 4178, 2147,
+    1582, 3250, 3301, 3866, 358, 3223, 2267, 1579, 3216, 1763, 1949, 880, 310,
+    1038, 457, 1986, 3479, 2556, 3361, 2452, 2542, 850, 937, 3542, 775, 993,
+    291, 3967, 380, 241, 2702, 1914, 2677, 2321, 1070, 3526, 1869, 815, 1242,
+    3876, 2303, 3593, 2300, 968, 3913, 3398, 1791, 660, 3755, 1823, 2552, 852,
+    1917, 3838, 84, 2355, 1131, 1836, 1014, 1688, 3679, 1272, 2239, 2454, 1937,
+    342, 1822, 2315, 36, 565, 3830, 3028, 114, 1287, 2713, 3782, 973, 303, 387,
+    1346, 301, 740, 19, 2576, 906, 3971, 4074, 4216, 1029, 2107, 3629, 2919,
+    3752, 1819, 3378, 1474, 648, 464, 3567, 698, 2920, 230, 1493, 4190, 363,
+    2177, 1197, 2034, 372, 1787, 3244, 272, 3307, 3467, 960, 1508, 545, 13,
+    485, 2948, 289, 792, 1117, 3701, 445, 1776, 814, 325, 890, 1995, 257, 2158,
+    4111, 3348, 1308, 1694, 3841, 1262, 2372, 1366, 2420, 3921, 3990, 4128,
+    4087, 3725, 2121, 2842, 2060, 1533, 412, 100, 2449, 2979, 4026, 2444, 2574,
+    1613, 1618, 2390, 3854, 2774, 564, 642, 2647
+]
+balanced = np.take(evaluation, indices, axis=0)
+print balanced.shape, evaluation[len(labels):, :].shape
+balanced = np.concatenate((balanced, evaluation[len(labels):, :]), axis = 0)
+labels=np.take(labels,indices)
+
+
 tmp = np.array([1] * 137)
 labels = np.concatenate((labels,tmp))
 #plotData(dt,2,4,"normal", oneClass=False)
@@ -948,49 +976,54 @@ print len(labels), len(evaluation)
 #print originalDt[0:5]
 
 
-# --------- outlier distance based
+#--------- outlier distance based
 # th = 1.0
 # n_clust = 4
-# res, kmean = outlierDistanceBased(dt, n_clust , th)
+# res, kmean = outlierDistanceBased(evaluation, n_clust , th)
 # for i in range(n_clust):
 #     print i, len(res[i])
 
-# dist = kmean.transform(evaluation)
-# clustersInd = kmean.predict(evaluation)
+# #to check on a subset
+# dist = kmean.transform(balanced)
+# clustersInd = kmean.predict(balanced)
 # count = 0
 # predicted = []
-# for i in range(len(evaluation)):
+# for i in range(len(balanced)):
 #     if dist[i][clustersInd[i]] > th :
 #         count +=1
 #         predicted.append(1)
 #     else:
 #         predicted.append(0)
-# print "found " + str(count) + " ouliers over " + str(len(evaluation)) + " connections "
-# print str( (count/len(evaluation))*100) + "%"
+# print "found " + str(count) + " ouliers over " + str(len(balanced)) + " connections "
+# print str( (count/len(balanced))*100) + "%"
 
-# #get all the outliers reported in the training data
-# # dt_outliers = [dt[j] for j in res[0]]
-# # for i in range(1, n_clust):
-# #     outliers = [dt[j] for j in res[i]]
-# #     print len(outliers)
-# #     print len(dt_outliers)
-# #     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
-#dt_outliers = np.concatenate((dt_outliers, evaluation), axis = 0)
-# plotData(dt,2,n_clust,'ciao',evaluation, oneClass=False)
+# # #get all the outliers reported in the training data
+# # # dt_outliers = [dt[j] for j in res[0]]
+# # # for i in range(1, n_clust):
+# # #     outliers = [dt[j] for j in res[i]]
+# # #     print len(outliers)
+# # #     print len(dt_outliers)
+# # #     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
+# # dt_outliers = np.concatenate((dt_outliers, evaluation), axis = 0)
+# # plotData(dt,2,n_clust,'ciao',evaluation, oneClass=False)
 
 # #to check directly on the training data
-# # predicted = [0] * len(dt)
+# # predicted = [0] * len(evaluation)
 # # for k in range(n_clust):
 # #     for i in res[k]:
 # #         predicted[i] = 1
 
 # labels= list(labels)
-# print labels[0:10]
-# print predicted[0:10]
+# # print labels[0:10]
+# # print predicted[0:10]
 
 # print "len of labels and predicted:"
 # print len(labels), len(predicted)
 # labels = labels[0:len(predicted)]
+
+# #random guessing
+# # for i in range(len(predicted)):
+# #     predicted[i] = random.randint(0,1)
 
 # cm = metrics.confusion_matrix(labels, predicted, labels=[1, 0])
 # print cm
@@ -1005,69 +1038,74 @@ print len(labels), len(evaluation)
 
 
 
-# #-------------outlier 1class svm
+#-------------outlier 1class svm
 n_clust = 4
 
-res = outlier1CSVMTrain(dt,n_clust, 0.2)
+r = []
+r.append(outlier1CSVMTrain(evaluation,n_clust, 0.1))
+# r.append(outlier1CSVMTrain(evaluation,n_clust, 0.15))
+# r.append(outlier1CSVMTrain(evaluation,n_clust, 0.15,))
+# r.append(outlier1CSVMTrain(evaluation,n_clust, 0.15))
 #load models
 # res = {}
 # res["kmean"] = joblib.load('./models/kmeanNormalAlimenti.joblib')
 # for i in range(n_clust):
 #     res[i] = {}
 #     res[i]["clf"] = joblib.load('./models/oneCsvm_'+str(i)+'_001.joblib')
+c=0
+for res in r:
+    print '--------------',  c, '-----------------'
+    km = res["kmean"]
+    c+=1
+    for i in range(n_clust):
+        print "cluster " + str(i) + ": " + str(len(res[i]["trainNormIndices"])) + " normals, " + str(len(res[i]["trainOutIndices"])) + " outliers"
 
+    # #plot model result
+    # dt_outliers = [dt[j] for j in res[0]["trainOutIndices"]]
+    # dt_normals = [dt[j] for j in res[0]["trainNormIndices"]]
+    # for i in range(1,n_clust):
+    #     outliers = [dt[j] for j in res[i]["trainOutIndices"]]
+    #     normals = [dt[j] for j in res[i]["trainNormIndices"]]
+    #     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
+    #     dt_normals = np.concatenate((dt_normals, normals), axis=0)
+    #plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
 
-km = res["kmean"]
-# for i in range(n_clust):
-#     print "cluster " + str(i) + ": " + str(len(res[i]["trainNormIndices"])) + " normals, " + str(len(res[i]["trainOutIndices"])) + " outliers"
+    #evaluation only on evaluation dataset
+    # predicted = [0] * len(evaluation)
+    # for k in range(n_clust):
+    #     for i in res[k]["trainOutIndices"]:
+    #         predicted[i] = 1
+    # print "len of labels and predicted:"
+    # print len(labels), len(predicted)
 
-# #plot model result
-# dt_outliers = [dt[j] for j in res[0]["trainOutIndices"]]
-# dt_normals = [dt[j] for j in res[0]["trainNormIndices"]]
-# for i in range(1,n_clust):
-#     outliers = [dt[j] for j in res[i]["trainOutIndices"]]
-#     normals = [dt[j] for j in res[i]["trainNormIndices"]]
-#     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
-#     dt_normals = np.concatenate((dt_normals, normals), axis=0)
-#plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
+    #PREDICTION on a subset
+    attackClusters = km.predict(balanced)
+    outliersCount = 0.0
+    predicted = []
+    for i in range(len(balanced)):
+        k = attackClusters[i]
+        r = res[k]["clf"].predict(balanced[i].reshape(1,-1))
+        if r == -1:
+            outliersCount += 1
+            predicted.append(1)
+        else:
+            predicted.append(0)
+    # # dt_outliers = np.concatenate((dt_outliers, evaluation), axis = 0)
+    # plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
+    # print "found " + str(outliersCount) + " ouliers over " + str(len(evaluation)) + " connections "
+    # print str( (outliersCount/len(evaluation))*100) + "%"
 
-#evaluation only on evaluation dataset
-# predicted = [0] * len(dt)
-# for k in range(n_clust):
-#     for i in res[k]["trainOutIndices"]:
-#         predicted[i] = 1
-# print "len of labels and predicted:"
-# print len(labels), len(predicted)
-# labels = labels[0:len(predicted)]
+    labels = labels[0:len(predicted)]
+    cm = metrics.confusion_matrix(
+            labels, predicted, labels=[1, 0])
+    print cm
+    tp, fn, fp, tn = cm.ravel()
 
-
-attackClusters = km.predict(evaluation)
-outliersCount = 0.0
-predicted = []
-for i in range(len(evaluation)):
-    k = attackClusters[i]
-    r = res[k]["clf"].predict(evaluation[i].reshape(1,-1))
-    if r == -1:
-        outliersCount += 1
-        predicted.append(1)
-    else:
-        predicted.append(0)
-# dt_outliers = np.concatenate((dt_outliers, evaluation), axis = 0)
-# plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
-# print "found " + str(outliersCount) + " ouliers over " + str(len(evaluation)) + " connections "
-# print str( (outliersCount/len(evaluation))*100) + "%"
-
-labels = labels[0:len(predicted)]
-cm = metrics.confusion_matrix(
-        labels, predicted, labels=[1, 0])
-print cm
-tp, fn, fp, tn = cm.ravel()
-
-print tp, fp, fn, tn
-print 'accuracy ', (tp + tn) / (tp + tn + fp + fn + 0.0) * 100
-print 'precision ', (tp) / (tp + fp + 0.0) * 100
-print 'recall ', (tp) / (tp + fn + 0.0) * 100
-print 'far ', fp / (fp + tn + 0.0) * 100
+    print tp, fp, fn, tn
+    print 'accuracy ', (tp + tn) / (tp + tn + fp + fn + 0.0) * 100
+    print 'precision ', (tp) / (tp + fp + 0.0) * 100
+    print 'recall ', (tp) / (tp + fn + 0.0) * 100
+    print 'far ', fp / (fp + tn + 0.0) * 100
 
 
 # # save model
@@ -1147,3 +1185,36 @@ print 'far ', fp / (fp + tn + 0.0) * 100
 #             csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 #         for con in outliers:
 #            sw.writerow(con)
+
+# #heuristic evaluation
+# log = fileToDic('./logs/raw_complete_evaluation')
+# report = heuristics.checkRefAndUserAgentFingerprints(log, {})
+# report = heuristics.checkReqFingerprints(log, report )
+# report = heuristics.checkStatusCode(log, report)
+# print log[0:2]
+# hpred = []
+# for c in log:
+#     if c["Resource"] == '/alimenti':
+#         k = hashlib.md5(bencode.bencode(c)).hexdigest()
+#         if not k in report or ( report[k]["aloneAlerts"] == 0 and report[k]["otherAlerts"] <= 1 ):
+#             hpred.append(0)
+#         else:
+#             hpred.append(1)
+# print len(labels), len(hpred)
+
+# labels = labels[0:len(predicted)]
+# cm = metrics.confusion_matrix(
+#         labels, hpred, labels=[1, 0])
+# print cm
+# tp, fn, fp, tn = cm.ravel()
+
+# print tp, fp, fn, tn
+# print 'accuracy ', (tp + tn) / (tp + tn + fp + fn + 0.0) * 100
+# print 'precision ', (tp) / (tp + fp + 0.0) * 100
+# print 'recall ', (tp) / (tp + fn + 0.0) * 100
+# print 'far ', fp / (fp + tn + 0.0) * 100
+
+#migliora label delle immagini
+#fai baseline con label aggiunte a caso
+#fai test con dataset bilianciato (pochi normali, circa il doppio o il triplo degli attacchi)
+#dividi la sitografia
