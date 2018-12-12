@@ -5,3 +5,10 @@ sessions.json
 session*json
 outputs/*
 *.pyc
+*.png
+*.html
+usage.py
+*.joblib
+note
+*.txt
+raw_complete_evaluation
