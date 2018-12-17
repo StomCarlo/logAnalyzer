@@ -6,7 +6,7 @@ from sklearn.externals import joblib
 from sklearn import metrics
 
 
-#this files reports many examples, to run one of them unsomment it and run this file
+#this files reports many examples, to run one of them uncomment it and run this file
 
 #session generation (from raw log to sessions in csv)
 

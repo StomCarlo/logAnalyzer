@@ -5,7 +5,7 @@ import pandas
 import numpy as np
 
 
-def text2hash(df):
+def text2hash(df): #hash all the colums which contains string values in a dataframe
     for el in df.columns:
         if not isNumeric(df[el]) :
             #print el, df[el][0]
@@ -13,7 +13,7 @@ def text2hash(df):
                 lambda x: hashing_trick(str(x), 200, hash_function='md5', filters='!"#$%&()*+,-./:;<=>?@[\]^`{|}~ '))
 
 
-def removeNan(df):
+def removeNan(df): #removes nan from a df and puts -1 
     for el in df.columns:
         df[el] = df[el].apply(
                 lambda x: -1 if pandas.isnull(x) else x)
@@ -21,14 +21,14 @@ def removeNan(df):
 
 
 
-def isNumeric(col):
+def isNumeric(col): #check if a column contains only numeric values
     for el in col:
         if not isinstance(el, int) and not isinstance(el, float) and el is not None:
             return False
     return True
 
 
-def removeListValues(matrix):
+def removeListValues(matrix): #remove nested lists from matrix
     i = 0
     for row in matrix[:, :]:
         j = 0
@@ -43,7 +43,7 @@ def removeListValues(matrix):
     return matrix
 
 
-def loadDataset_oneHotEncoder(path, separetor=','):
+def loadDataset_oneHotEncoder(path, separetor=','): #loads a dataset (CSV) applying one hot encoding to remove strings
     # load the dataset
     dt = pandas.read_csv(
         path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
@@ -58,7 +58,8 @@ def loadDataset_oneHotEncoder(path, separetor=','):
     dt = enc.transform(dt)
     return dt
 
-def loadDataset_hash(path, separetor = ','):
+#DON'T USE THIS TO LOAD TWO DATASETS SEPARATELY BECAUSE THERE WILL BE DIFFERENCES IN THE SCALING, USE THE NEXT FUNCTION INSTEAD
+def loadDataset_hash(path, separetor = ','):  #loads a dataset(csv) applyng hash to remove strings and minmax scaling
     dt = pandas.read_csv(
         path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
         engine='python',
@@ -74,7 +75,7 @@ def loadDataset_hash(path, separetor = ','):
     return dt
 
 
-def loadDatasets_hash(path1, path2, separetor=','):
+def loadDatasets_hash(path1, path2, separetor=','): #loads to dataset applying hash and scaling. Use this if you need to work on two datasets
     dt1 = pandas.read_csv(
         path1,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
         engine='python',
@@ -99,7 +100,7 @@ def loadDatasets_hash(path1, path2, separetor=','):
     return dt[0:limit, :], dt[limit:,:]
 
 
-def loadDataset(path, separetor=','):
+def loadDataset(path, separetor=','): #loads a dataset(csv) keeping the string values as thay are
     dt = pandas.read_csv(
         path,  #'../NSL-KDD-Dataset-master/KDDdt+.csv'
         engine='python',

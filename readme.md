@@ -1,4 +1,4 @@
-#Unsupervised Outlier Detection from web server logs
+# Unsupervised Outlier Detection from web server logs
 
 This repository contains a set of funcions to preprocess web server logs and the implementation of an unsupervised outlier detection method.
 
