@@ -10,25 +10,24 @@ from sklearn import metrics
 
 #session generation (from raw log to sessions in csv)
 
-# file = './logs/merged_anon_access_log' #change the file name as needed
-# l = fileToDic(file)
-# sessions=sessionConverter(l)
-# sessionVectorizer(sessions) #use this one if you want sessions features with  frequencies and percentages
-# sessionDatasetConverter(sessions,file) #use this is you want sessions features with only as frequencies
+file = './logs/merged_anon_access_log' #change the file name as needed
+l = wsl.fileToDic(file)
+sessions=wsl.sessionConverter(l)
+wsl.sessionVectorizer(sessions) #use this one if you want sessions features with  frequencies and percentages
+#wsl.sessionDatasetConverter(sessions,file) #use this is you want sessions features with only as frequencies
 
 #session generation (from session json to sessions csv)
 
 #with open('sessions.json') as f:
 #     sessions = json.load(f)
-#     sessionVectorizer(sessions) #use this one if you want sessions features with  frequencies and percentages
-#     sessionDatasetConverter(sessions,file) #use this is you want sessions features with only as frequencies
-
+#     wsl.sessionVectorizer(sessions) #use this one if you want sessions features with  frequencies and percentages
+#     wsl.sessionDatasetConverter(sessions,file) #use this is you want sessions features with only as frequencies
 
 #create csv file describing normal and signaled connestions as marked by the heuristics, splitted by resource
-#normalLog('./logs/merged_anon_access_log', splitByRes=True) #change the file name as needed
+#wsl.normalLog('./logs/merged_anon_access_log', splitByRes=True) #change the file name as needed
 
 #kmean over a log file , calculate min, man and avg dists
-# dt = utilities.loadDataset_hash(FILEPATH) #file path is the path to a csv 
+# dt = utilities.loadDataset_hash(FILEPATH) #file path is the path to a csv
 # kmeans = KMeans(n_clusters=4, random_state=0).fit(dt)
 # labels = kmeans.labels_
 # dst = kmeans.transform(dt) #array of array
@@ -45,7 +44,6 @@ from sklearn import metrics
 #         dist_to_cluster[k])
 #     print k, " avg: ", avg, " max: ", max(dist_to_cluster[k]), " min: ", min(
 #         dist_to_cluster[k]), " mean dev: ", np.std( dist_to_cluster[k]), " median dev: ", robust.mad(dist_to_cluster[k])
-
 
 #model usage
 
@@ -91,16 +89,15 @@ from sklearn import metrics
 # print 'recall ', (tp) / (tp + fn + 0.0) * 100
 # print 'far ', fp / (fp + tn + 0.0) * 100
 
-#-------------outlier 1class svm
+# -------------outlier 1class svm
 # n_clust = 4
-#res = outlier1CSVMTrain(train,n_clust, 0.5)_clust, 0.15))
-#load models
+# res = wsl.outlier1CSVMTrain(train,n_clust, 0.5)_clust, 0.15))
+# load models
 # res = {}
 # res["kmean"] = joblib.load('./models/kmeanNormalAlimenti.joblib')
 # for i in range(n_clust):
 #     res[i] = {}
 #     res[i]["clf"] = joblib.load('./models/oneCsvm_'+str(i)+'_001.joblib')
-
 
 # km = res["kmean"]
 # c+=1
@@ -115,10 +112,9 @@ from sklearn import metrics
 #     normals = [dt[j] for j in res[i]["trainNormIndices"]]
 #     dt_outliers = np.concatenate((dt_outliers, outliers), axis=0)
 #     dt_normals = np.concatenate((dt_normals, normals), axis=0)
-#plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
+# plotData(dt_normals,2,n_clust,'ciao',dt_outliers, oneClass=False)
 
-
-#PREDICTION on a subset
+# PREDICTION on a subset
 # attackClusters = km.predict(evaluation)
 # outliersCount = 0.0
 # predicted = []
@@ -130,7 +126,6 @@ from sklearn import metrics
 #         predicted.append(1)
 #     else:
 #         predicted.append(0)
-
 
 # labels = labels[0:len(predicted)]
 # cm = metrics.confusion_matrix(
@@ -158,20 +153,19 @@ from sklearn import metrics
 #         for con in outliers:
 #            sw.writerow(con)
 
-
-#session evaluation
+# session evaluation
 # dt = utilities.loadDataset('./sessionsVector.csv')
 # print dt.shape
 # scaler = MinMaxScaler(feature_range=(0, 1))
 # #dt = np.delete(dt, [1,2,3,4,5,6,7,8,16,17,19], axis=1)
-#dt = scaler.fit_transform(dt[:,:])
+# dt = scaler.fit_transform(dt[:,:])
 
 # print len(dt), len(outIndices)
 
-#plotData(dt, 2, 3, "normal", oneClass=False)
+# wsl.plotData(dt, 2, 3, "normal", oneClass=False)
 # # --------- outlier distance based
 # th = 1.0
 # n_clust = 4
-# res, kmean = outlierDistanceBased(dt, n_clust , th)
+# res, kmean = wsl.outlierDistanceBased(dt, n_clust , th)
 # for i in range(n_clust):
 #     print i, len(res[i])
